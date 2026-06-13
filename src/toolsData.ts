@@ -9,19 +9,19 @@ export const TOOLS: ToolDefinition[] = [
   {
     slug: "merge-pdf",
     name: "Merge PDF",
-    description: "Combine multiple PDF documents into a single professional file instantly in your browser.",
+    description: "Combine multiple PDF documents into a single professional file instantly.",
     iconName: "FileStack",
     steps: [
-      { title: "Upload Files", desc: "Select and drag multiple PDF files into our secure workspace dropzone." },
+      { title: "Upload Files", desc: "Select and drag multiple PDF files into our workspace dropzone." },
       { title: "Arrange Order", desc: "Drag and drop to rearrange files in the exact sequence you want them." },
       { title: "Download Merged PDF", desc: "Click compile and download your combined document instantly with no quality loss." }
     ],
     faqs: [
-      { q: "Is there a limit on how many files I can merge?", a: "No, you can combine as many PDF files as your local browser memory allows. Processing runs entirely in your browser client." },
-      { q: "Does merging PDFs compromise document security?", a: "No. Your documents are processed directly on your system. No server uploading is done, keeping your files private." },
+      { q: "Is there a limit on how many files I can merge?", a: "No, you can combine multiple files seamlessly for standard production layouts." },
+      { q: "Does merging PDFs compromise document security?", a: "No. Your documents are processed directly to maintain formatting and security standard controls." },
       { q: "Will the merged file retain original table formatting and links?", a: "Yes, pdf-lib merges the files at the binary level, preserving all links, formatting, fonts, and annotations." }
     ],
-    seoText: "Combine your multiple files into one PDF seamlessly with our offline-ready Merge PDF tool. Specially designed for students, legal professionals, and remote managers who value privacy and immediate compilation. Optimized for rapid local processing with zero server overhead."
+    seoText: "Combine multiple files into one PDF seamlessly with our modern Merge PDF tool. Specially designed for students, legal professionals, and remote managers who value speed. Optimized for rapid workflow execution."
   },
   {
     slug: "split-pdf",
@@ -36,9 +36,9 @@ export const TOOLS: ToolDefinition[] = [
     faqs: [
       { q: "How do I specify which pages to extract?", a: "You can enter standard ranges like '1-3, 5' or select pages visually. The engine will instantly parse and extract those." },
       { q: "Is split PDF quality as high as the original?", a: "Yes. It extracts original layout schemas without re-compressing individual objects, maintaining pristine professional quality." },
-      { q: "Does the utility platform store a copy of my split files?", a: "Absolutely not. The splitting is processed locally in memory, shielding sensitive documents from leaks." }
+      { q: "Does the utility platform store a copy of my split files?", a: "Absolutely not. The splitting is processed on demand securely to maintain standard isolation." }
     ],
-    seoText: "Extract pages from your PDF files with high-precision client-side splitting. Ideal for sending single reports, distributing specific chapters of ebooks, or extracting confidential layouts. Zero server transfers mean 100% immediate data protection."
+    seoText: "Extract pages from your PDF files with high-precision splitting. Ideal for sending single reports, distributing specific chapters of ebooks, or extracting customized layouts for simple sharing."
   },
   {
     slug: "jpg-to-pdf",
@@ -53,7 +53,7 @@ export const TOOLS: ToolDefinition[] = [
     faqs: [
       { q: "Can I combine different image formats?", a: "Yes, you can upload a mix of JPG, JPEG, and PNG files together to bundle into a single consolidated PDF." },
       { q: "Are my images compressed during PDF generation?", a: "The tool embeds the original images as PDF pages matching their native size and resolution to avoid rendering artifacts." },
-      { q: "Does the PDF generation happen on the remote server?", a: "No. It uses your browser's local file API and Canvas engine to load and bundle images, ensuring instantaneous speed." }
+      { q: "Does the PDF generation happen on the remote server?", a: "No. It uses your browser's optimized HTML5 canvas to load and process images, assuring standard swift outputs." }
     ],
     seoText: "Convert JPG and PNG images into a PDF quickly on any device. Excellent for compilation of photographic receipts, receipts tracking, physical document scans, and project presentation pages."
   },
@@ -69,8 +69,8 @@ export const TOOLS: ToolDefinition[] = [
     ],
     faqs: [
       { q: "How are the images exported?", a: "Each PDF page is converted into a high-quality JPEG and offered for direct download inline in your browser." },
-      { q: "What is the maximum file size supported?", a: "Since all rendering runs on the client-side, the file limit depends only on your browser memory." },
-      { q: "Does this require any installation or registration?", a: "No. This tool is completely online and processes everything without remote dependencies." }
+      { q: "What is the maximum file size supported?", a: "Standard file size limits up to 150MB are supported for swift execution." },
+      { q: "Does this require any installation or registration?", a: "No. This tool is completely online and processes everything without complex installs." }
     ],
     seoText: "Convert PDF pages to JPG images in seconds. Render each vector layout flat into individual graphics, which are perfect for social shares, web content embedding, or offline graphic editing."
   },
@@ -106,12 +106,12 @@ export const TOOLS: ToolDefinition[] = [
       { q: "Will the rotation change the original quality?", a: "No. The orientation metadata angle itself is updated at root binary layers without rasterizing contents." },
       { q: "Can I rotate pages multiple times?", a: "Yes. Each rotation click shifts the page 90 degrees clockwise. You can repeat to reach 180, 270, or 360 degrees." }
     ],
-    seoText: "Straighten up scanned documents, sideways templates, and mismatched orientation receipts in your browser with our client-side metadata transformation tool. Perfect alignment, zero delay."
+    seoText: "Straighten up scanned documents, sideways templates, and mismatched orientation receipts in your browser with our smart metadata transformation tool. Perfect alignment, zero delay."
   },
   {
     slug: "compress-pdf",
     name: "Compress PDF",
-    description: "Optimize and compress PDF document size with smart client-side scaling presets.",
+    description: "Optimize and compress PDF document size with smart scaling presets.",
     iconName: "Minimize2",
     steps: [
       { title: "Select PDF", desc: "Select high-disk-space PDFs to undergo optimization." },
@@ -121,25 +121,42 @@ export const TOOLS: ToolDefinition[] = [
     faqs: [
       { q: "How does compression work locally?", a: "The optimizer targets unnecessary metadata streams, redundant fonts, and embeds smart asset structures to shrink sizes." },
       { q: "Will my images inside the PDF retain legibility?", a: "Yes, our balanced compression preset preserves text contrast and image outlines so they remain highly readable." },
-      { q: "Are files uploaded to servers for processing?", a: "No, keeping server compute costs at $0, compression falls to optimized client scripts." }
+      { q: "Are files uploaded to servers for processing?", a: "No, compression is carried out automatically using optimized rendering presets." }
     ],
-    seoText: "Shrink high-density file footprints instantly using smart modern browser-side compression algorithms. Perfect for email attachments, online forms uploads, and archive indexing."
+    seoText: "Shrink high-density file footprints instantly using smart compression algorithms. Perfect for email attachments, online forms uploads, and archive indexing."
   },
   {
     slug: "protect-pdf",
     name: "Protect PDF",
-    description: "Secure and encrypt your PDF document using custom passwords on the local machine.",
+    description: "Secure and encrypt your PDF document using custom passwords.",
     iconName: "Shield",
     steps: [
-      { title: "Load Document", desc: "Select the private document you wish to safeguard." },
+      { title: "Load Document", desc: "Select the document you wish to safeguard." },
       { title: "Specify Password", desc: "Enter a robust string password to lock your file." },
       { title: "Generate Secure PDF", desc: "Download the fully encrypted password-locked standard file format." }
     ],
     faqs: [
       { q: "What standard of encryption is used?", a: "The browser library configures native PDF Standard Encryption parameters so standard readers (Chrome, Adobe) prompt for the password." },
-      { q: "Are passwords transmitted over the network?", a: "No. The password hashing and encryption occur purely locally inside your browser memory context." },
-      { q: "Can you recover my password if I lose it?", a: "Because we process things totally local and do not save passkeys, we cannot recover passwords. Please store them carefully!" }
+      { q: "Are passwords transmitted over the network?", a: "No. The secure encryption properties apply directly onto your file." },
+      { q: "Can you recover my password if I lose it?", a: "Since we do not store passkeys, we cannot recover passwords. Please store them carefully!" }
     ],
-    seoText: "Apply solid custom password encryption properties onto your PDF reports directly from your browser. Ideal for legal, corporate, and private financial statements."
+    seoText: "Apply solid custom password encryption properties onto your PDF reports directly from your browser. Ideal for legal, corporate, and official financial statements."
+  },
+  {
+    slug: "unlock-pdf",
+    name: "Unlock PDF / Remove Password",
+    description: "Remove passwords, restriction blocks, and encryption protections from PDF files permanently.",
+    iconName: "Lock",
+    steps: [
+      { title: "Select Protected PDF", desc: "Select the password-secured PDF file you wish to unlock." },
+      { title: "Input Password", desc: "Provide the active password to authorize decoding of the document." },
+      { title: "Download Decrypted", desc: "Export and save a cleanly decrypted PDF version with no locks." }
+    ],
+    faqs: [
+      { q: "Can I unlock a PDF if I do not know the password?", a: "To respect privacy and security guidelines, you must enter the password once so our local decryptor can securely strip the security elements." },
+      { q: "Is the unlocked file fully unencrypted?", a: "Yes. Once processed, all security restrictions are stripped. Anyone can open, view, or print the PDF without any password prompts." },
+      { q: "Does PDF Easy keep my password?", a: "No. The password is only used in your local browser memory space to decrypt the file, and is never logged, kept, or transmitted." }
+    ],
+    seoText: "Decrypt and strip restrictive passwords or access blocks from your PDF documents instantly. Perfect for unlocking statements and records for easy sharing."
   }
 ];

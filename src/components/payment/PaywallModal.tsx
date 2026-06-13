@@ -27,7 +27,7 @@ const PLANS: PaymentPlan[] = [
     benefits: [
       "Completely unlimited PDF processes",
       "Process up to 150MB per document",
-      "100% cloud-free private memory execution",
+      "High performance multi-format engine",
       "UPI & Credit/Debit Card support"
     ]
   },
@@ -40,8 +40,8 @@ const PLANS: PaymentPlan[] = [
     benefits: [
       "All Daily Pass premium access",
       "Optimized ultra-high compression priority",
-      "Direct Priority browser rendering core",
-      "No session culling or storage logs"
+      "Direct Priority rendering core",
+      "Full premium multi-device priority"
     ]
   },
   {
@@ -290,7 +290,7 @@ export default function PaywallModal({
             {/* TRUST CRITERIA SECTION */}
             <div className="mt-6 pt-5 border-t border-neutral-200/50 text-[11px] text-neutral-500 space-y-1.5">
               <p className="flex items-center gap-2 font-mono">
-                <Check size={12} className="text-emerald-500" /> Solid offline execution - zero file leaks
+                <Check size={12} className="text-emerald-500" /> Fast processing - high precision outcomes
               </p>
               <p className="flex items-center gap-2 font-mono">
                 <Check size={12} className="text-emerald-500" /> Cancel anytime with zero commitment
