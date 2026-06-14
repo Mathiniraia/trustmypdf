@@ -148,6 +148,9 @@ app.post("/api/crm/sync-user", async (req, res) => {
   try {
     const { displayName, avatarUrl, email, phone, authProvider, planStatus } = req.body;
 
+    // Sanitize authProvider: Supabase CHECK constraint only allows "google" | "phone"
+    const safeAuthProvider = (authProvider === "phone") ? "phone" : "google";
+
     const encryptedEmail = email ? encryptData(email) : null;
     const encryptedPhone = phone ? encryptData(phone) : null;
 
@@ -155,44 +158,62 @@ app.post("/api/crm/sync-user", async (req, res) => {
     const contactInfo = email || phone || "";
     const encryptedContactInfo = contactInfo ? encryptData(contactInfo) : "";
 
-    const crmResponse = await fetch("http://localhost:3001/api/admin/trigger-webhook", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-email": "mathinirai.a@gmail.com"
-      },
-      body: JSON.stringify({
-        customerName: displayName,
-        planType: planStatus === "pro" ? "Monthly Pro" : "Daily Pass",
-        contactNumberOrEmail: encryptedContactInfo
-      })
-    });
+    try {
+      const crmResponse = await fetch("http://localhost:3001/api/admin/trigger-webhook", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": "mathinirai.a@gmail.com"
+        },
+        body: JSON.stringify({
+          customerName: displayName,
+          planType: planStatus === "pro" ? "Monthly Pro" : "Daily Pass",
+          contactNumberOrEmail: encryptedContactInfo
+        })
+      });
 
-    if (!crmResponse.ok) {
-      const errText = await crmResponse.text();
-      console.warn("CRM returned error status:", crmResponse.status, errText);
+      if (!crmResponse.ok) {
+        const errText = await crmResponse.text();
+        console.warn("CRM returned error status:", crmResponse.status, errText);
+      }
+    } catch (crmErr: any) {
+      // CRM webhook is optional — don't fail the entire sync if CRM is unreachable
+      console.warn("CRM webhook unreachable (non-blocking):", crmErr.message);
     }
 
-    // 2. Sync to Supabase Database
-    const { data, error } = await supabase
+    // 2. Sync to Supabase Database (with graceful fallback for missing columns)
+    const fullPayload: Record<string, any> = {
+      display_name: displayName,
+      avatar_url: avatarUrl,
+      encrypted_email: encryptedEmail,
+      encrypted_phone: encryptedPhone,
+      auth_provider: safeAuthProvider,
+      plan_status: planStatus || "free",
+    };
+
+    let { data, error } = await supabase
       .from("crm_users")
-      .upsert(
-        {
-          display_name: displayName,
-          avatar_url: avatarUrl,
-          encrypted_email: encryptedEmail,
-          encrypted_phone: encryptedPhone,
-          auth_provider: authProvider,
-        },
-        { onConflict: "encrypted_email" }
-      )
+      .upsert(fullPayload, { onConflict: "encrypted_email" })
       .select();
+
+    // If plan_status or usage_count columns don't exist yet, retry without them
+    if (error && error.message.includes("schema cache")) {
+      console.warn("[CRM Sync] Retrying without plan_status (column may not exist yet)...");
+      const { plan_status, usage_count, ...corePayload } = fullPayload;
+      const retryResult = await supabase
+        .from("crm_users")
+        .upsert(corePayload, { onConflict: "encrypted_email" })
+        .select();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) {
       console.warn("Supabase sync warning:", error.message);
       return res.status(400).json({ success: false, error: error.message });
     }
 
+    console.log(`[CRM Sync] User "${displayName}" synced to Supabase (provider=${safeAuthProvider}, plan=${planStatus})`);
     return res.json({ success: true, user: data?.[0] });
   } catch (err: any) {
     console.error("Failed to sync user session:", err);
@@ -245,7 +266,7 @@ app.get("/api/usage/status", (req, res) => {
   });
 });
 
-app.post("/api/usage/increment", (req, res) => {
+app.post("/api/usage/increment", async (req, res) => {
   const { email } = req.body;
   const key = getUsageKey(req, email);
 
@@ -267,10 +288,23 @@ app.post("/api/usage/increment", (req, res) => {
   ipUsageStore[key].count += 1;
   saveUsage();
 
+  // Sync updated task count to Supabase so CRM dashboard reflects changes in real-time
+  if (email && email.trim()) {
+    const encryptedEmail = encryptData(email);
+    supabase
+      .from("crm_users")
+      .update({ usage_count: ipUsageStore[key].count })
+      .eq("encrypted_email", encryptedEmail)
+      .then(({ error }) => {
+        if (error) console.warn("Supabase usage sync warning:", error.message);
+        else console.log(`[Usage Sync] Task count updated to ${ipUsageStore[key].count} for ${email}`);
+      });
+  }
+
   res.json({ allowed: true, count: ipUsageStore[key].count });
 });
 
-app.post("/api/usage/unlock", (req, res) => {
+app.post("/api/usage/unlock", async (req, res) => {
   const { email } = req.body;
   
   // Unlock by both IP and email (to be robust)
@@ -283,10 +317,24 @@ app.post("/api/usage/unlock", (req, res) => {
   ipUsageStore[ipKey].unlocked = true;
 
   saveUsage();
+
+  // Sync premium unlock to Supabase so CRM dashboard shows upgraded status
+  if (email && email.trim()) {
+    const encryptedEmail = encryptData(email);
+    supabase
+      .from("crm_users")
+      .update({ plan_status: "pro" })
+      .eq("encrypted_email", encryptedEmail)
+      .then(({ error }) => {
+        if (error) console.warn("Supabase unlock sync warning:", error.message);
+        else console.log(`[CRM Sync] Premium unlocked for ${email}`);
+      });
+  }
+
   res.json({ success: true });
 });
 
-app.post("/api/usage/reset", (req, res) => {
+app.post("/api/usage/reset", async (req, res) => {
   const { email } = req.body;
   const emailKey = getUsageKey(req, email);
   if (ipUsageStore[emailKey]) {
@@ -297,6 +345,20 @@ app.post("/api/usage/reset", (req, res) => {
     ipUsageStore[ipKey] = { count: 0, unlocked: false };
   }
   saveUsage();
+
+  // Sync reset to Supabase so CRM dashboard reflects the downgrade
+  if (email && email.trim()) {
+    const encryptedEmail = encryptData(email);
+    supabase
+      .from("crm_users")
+      .update({ plan_status: "free", usage_count: 0 })
+      .eq("encrypted_email", encryptedEmail)
+      .then(({ error }) => {
+        if (error) console.warn("Supabase reset sync warning:", error.message);
+        else console.log(`[CRM Sync] Usage reset for ${email}`);
+      });
+  }
+
   res.json({ success: true });
 });
 
