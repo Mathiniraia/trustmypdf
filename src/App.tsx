@@ -71,7 +71,7 @@ export default function App() {
           avatarUrl: `https://api.dicebear.com/7.x/adventurer/svg?seed=${name}`,
           email: isEmail ? contactInfo : null,
           phone: !isEmail ? contactInfo : null,
-          authProvider: authProvider,
+          authProvider: isEmail ? "google" : "phone",
           planStatus: planStatus
         })
       });
