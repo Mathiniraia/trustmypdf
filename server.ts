@@ -400,15 +400,45 @@ app.post("/api/crm/sync-user", async (req, res) => {
 
 // ================= PERSISTENT IP/ACCOUNT USAGE LIMITS =================
 const USAGE_FILE = path.join(process.cwd(), "ip_usage.json");
-let ipUsageStore: Record<string, { count: number; unlocked: boolean }> = {};
+
+// unlockedUntil: Unix ms timestamp — 0 means not unlocked.
+// After plan expires, unlockedUntil will be in the past and premium is revoked automatically.
+let ipUsageStore: Record<string, { count: number; unlockedUntil: number; planName: string }> = {};
 
 if (fs.existsSync(USAGE_FILE)) {
   try {
-    ipUsageStore = JSON.parse(fs.readFileSync(USAGE_FILE, "utf-8"));
+    const raw = JSON.parse(fs.readFileSync(USAGE_FILE, "utf-8"));
+    // Migrate old boolean-unlocked entries to new time-lock structure
+    for (const [k, v] of Object.entries(raw as any)) {
+      const entry = v as any;
+      ipUsageStore[k] = {
+        count: entry.count ?? 0,
+        unlockedUntil: entry.unlockedUntil ?? (entry.unlocked ? Infinity : 0),
+        planName: entry.planName ?? (entry.unlocked ? "Legacy Pro" : "free"),
+      };
+    }
   } catch (e) {
     ipUsageStore = {};
   }
 }
+
+/** Returns true if the entry currently has an active (not expired) premium plan */
+function isPremiumActive(entry: { unlockedUntil: number }): boolean {
+  return entry.unlockedUntil > Date.now();
+}
+
+/** Duration in ms for each plan */
+const PLAN_DURATIONS: Record<string, number> = {
+  daily:   24 * 60 * 60 * 1000,        // 24 hours
+  weekly:  7  * 24 * 60 * 60 * 1000,   // 7 days
+  monthly: 30 * 24 * 60 * 60 * 1000,   // 30 days
+};
+
+const PLAN_LABELS: Record<string, string> = {
+  daily:   "Daily Pass (24h)",
+  weekly:  "Weekly Pass (7 days)",
+  monthly: "Monthly Pro (30 days)",
+};
 
 function saveUsage() {
   try {
@@ -432,13 +462,25 @@ app.get("/api/usage/status", (req, res) => {
   const key = getUsageKey(req, email);
   
   if (!ipUsageStore[key]) {
-    ipUsageStore[key] = { count: 0, unlocked: false };
+    ipUsageStore[key] = { count: 0, unlockedUntil: 0, planName: "free" };
+    saveUsage();
+  }
+
+  const entry = ipUsageStore[key];
+  const active = isPremiumActive(entry);
+
+  // Auto-expire: if plan ended, keep count but clear premium
+  if (!active && entry.unlockedUntil > 0 && entry.unlockedUntil !== Infinity) {
+    entry.unlockedUntil = 0;
+    entry.planName = "free";
     saveUsage();
   }
   
   res.json({
-    count: ipUsageStore[key].count,
-    premiumUnlocked: ipUsageStore[key].unlocked
+    count: entry.count,
+    premiumUnlocked: active,
+    planExpiresAt: active ? entry.unlockedUntil : null,
+    planName: active ? entry.planName : null,
   });
 });
 
@@ -447,82 +489,105 @@ app.post("/api/usage/increment", async (req, res) => {
   const key = getUsageKey(req, email);
 
   if (!ipUsageStore[key]) {
-    ipUsageStore[key] = { count: 0, unlocked: false };
+    ipUsageStore[key] = { count: 0, unlockedUntil: 0, planName: "free" };
   }
 
-  // If already premium, let them proceed
-  if (ipUsageStore[key].unlocked) {
-    return res.json({ allowed: true, count: ipUsageStore[key].count });
+  const entry = ipUsageStore[key];
+
+  // If premium is active, let them proceed freely
+  if (isPremiumActive(entry)) {
+    return res.json({
+      allowed: true,
+      count: entry.count,
+      planExpiresAt: entry.unlockedUntil,
+      planName: entry.planName,
+    });
   }
 
-  const LIMIT = 3; // 3 free uses
-
-  if (ipUsageStore[key].count >= LIMIT) {
-    return res.json({ allowed: false, count: ipUsageStore[key].count });
+  // Plan expired — auto-clear premium flag
+  if (entry.unlockedUntil > 0 && entry.unlockedUntil !== Infinity) {
+    entry.unlockedUntil = 0;
+    entry.planName = "free";
+    saveUsage();
   }
 
-  ipUsageStore[key].count += 1;
+  // After plan expires: paywall immediately (count already > 3, no free retry)
+  // First-time users get 3 free uses.
+  const LIMIT = 3;
+  if (entry.count >= LIMIT) {
+    return res.json({ allowed: false, count: entry.count });
+  }
+
+  entry.count += 1;
   saveUsage();
 
-  // Sync updated task count to Supabase so CRM dashboard reflects changes in real-time
+  // Sync updated task count to Supabase
   if (email && email.trim()) {
     const encryptedEmail = encryptData(email);
     supabase
       .from("crm_users")
-      .update({ usage_count: ipUsageStore[key].count })
+      .update({ usage_count: entry.count })
       .eq("encrypted_email", encryptedEmail)
       .then(({ error }) => {
         if (error) console.warn("Supabase usage sync warning:", error.message);
-        else console.log(`[Usage Sync] Task count updated to ${ipUsageStore[key].count} for ${email}`);
+        else console.log(`[Usage Sync] Task count updated to ${entry.count} for ${email}`);
       });
   }
 
-  res.json({ allowed: true, count: ipUsageStore[key].count });
+  res.json({ allowed: true, count: entry.count });
 });
 
 app.post("/api/usage/unlock", async (req, res) => {
-  const { email } = req.body;
+  const { email, planId } = req.body;
   
-  // Unlock by both IP and email (to be robust)
+  const durationMs = PLAN_DURATIONS[planId] ?? PLAN_DURATIONS.daily;
+  const planLabel  = PLAN_LABELS[planId]   ?? "Daily Pass (24h)";
+  const expiresAt  = Date.now() + durationMs;
+
+  // Unlock by both email and IP keys for robustness
   const emailKey = getUsageKey(req, email);
-  if (!ipUsageStore[emailKey]) ipUsageStore[emailKey] = { count: 0, unlocked: true };
-  ipUsageStore[emailKey].unlocked = true;
+  if (!ipUsageStore[emailKey]) ipUsageStore[emailKey] = { count: 0, unlockedUntil: 0, planName: "free" };
+  ipUsageStore[emailKey].unlockedUntil = expiresAt;
+  ipUsageStore[emailKey].planName = planLabel;
 
   const ipKey = getUsageKey(req, undefined);
-  if (!ipUsageStore[ipKey]) ipUsageStore[ipKey] = { count: 0, unlocked: true };
-  ipUsageStore[ipKey].unlocked = true;
+  if (!ipUsageStore[ipKey]) ipUsageStore[ipKey] = { count: 0, unlockedUntil: 0, planName: "free" };
+  ipUsageStore[ipKey].unlockedUntil = expiresAt;
+  ipUsageStore[ipKey].planName = planLabel;
 
   saveUsage();
 
-  // Sync premium unlock to Supabase so CRM dashboard shows upgraded status
+  console.log(`[Usage Unlock] ${email || ipKey} → ${planLabel}, expires ${new Date(expiresAt).toISOString()}`);
+
+  // Sync premium unlock to Supabase
   if (email && email.trim()) {
     const encryptedEmail = encryptData(email);
     supabase
       .from("crm_users")
-      .update({ plan_status: "pro" })
+      .update({ plan_status: planId })
       .eq("encrypted_email", encryptedEmail)
       .then(({ error }) => {
         if (error) console.warn("Supabase unlock sync warning:", error.message);
-        else console.log(`[CRM Sync] Premium unlocked for ${email}`);
+        else console.log(`[CRM Sync] Plan '${planId}' activated for ${email}`);
       });
   }
 
-  res.json({ success: true });
+  res.json({ success: true, planExpiresAt: expiresAt, planName: planLabel });
 });
 
 app.post("/api/usage/reset", async (req, res) => {
   const { email } = req.body;
   const emailKey = getUsageKey(req, email);
   if (ipUsageStore[emailKey]) {
-    ipUsageStore[emailKey] = { count: 0, unlocked: false };
+    ipUsageStore[emailKey] = { count: 0, unlockedUntil: 0, planName: "free" };
   }
   const ipKey = getUsageKey(req, undefined);
   if (ipUsageStore[ipKey]) {
-    ipUsageStore[ipKey] = { count: 0, unlocked: false };
+    ipUsageStore[ipKey] = { count: 0, unlockedUntil: 0, planName: "free" };
   }
   saveUsage();
 
-  // Sync reset to Supabase so CRM dashboard reflects the downgrade
+  // Sync reset to Supabase
   if (email && email.trim()) {
     const encryptedEmail = encryptData(email);
     supabase

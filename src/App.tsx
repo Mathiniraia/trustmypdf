@@ -28,6 +28,7 @@ export default function App() {
   const [usageCount, setUsageCount] = useState(0);
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
   const [premiumPlanName, setPremiumPlanName] = useState("");
+  const [planExpiresAt, setPlanExpiresAt] = useState<number | null>(null); // ms timestamp
 
   // FAQ Accordion states
   const [activeFaqIndices, setActiveFaqIndices] = useState<number[]>([]);
@@ -342,9 +343,20 @@ export default function App() {
         if (response.ok) {
           const data = await response.json();
           setUsageCount(data.count);
-          if (data.premiumUnlocked) {
-            setPremiumUnlocked(true);
-            setPremiumPlanName("Premium Pro");
+          if (data.premiumUnlocked && data.planExpiresAt) {
+            // Verify expiry client-side too
+            if (data.planExpiresAt > Date.now()) {
+              setPremiumUnlocked(true);
+              setPremiumPlanName(data.planName || "Premium");
+              setPlanExpiresAt(data.planExpiresAt);
+            } else {
+              // Already expired — clear
+              setPremiumUnlocked(false);
+              setPlanExpiresAt(null);
+            }
+          } else {
+            setPremiumUnlocked(false);
+            setPlanExpiresAt(null);
           }
         }
       } catch (err) {
@@ -353,6 +365,22 @@ export default function App() {
     };
     fetchUsageStatus();
   }, [currentUserEmail]);
+
+  // Periodic expiry checker — checks every 60 seconds if premium has lapsed
+  useEffect(() => {
+    if (!planExpiresAt) return;
+    const interval = setInterval(() => {
+      if (Date.now() >= planExpiresAt) {
+        setPremiumUnlocked(false);
+        setPlanExpiresAt(null);
+        setPremiumPlanName("");
+        // Show paywall on next tool action — no need to force popup now
+        console.log("[Plan] Plan expired — premium revoked");
+        clearInterval(interval);
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [planExpiresAt]);
 
   // Check and increment attempt logic
   const handleUsageIncrement = async (): Promise<boolean> => {
@@ -386,35 +414,34 @@ export default function App() {
 
   // Callback on successful checkout payment
   const handlePaymentSuccessUnlock = async (planId: string) => {
-    const planNameLabel = planId === "daily" ? "Daily Pass" : planId === "weekly" ? "Weekly Pass" : "Monthly Pro";
+    const planNameLabel = planId === "daily" ? "Daily Pass (24h)" : planId === "weekly" ? "Weekly Pass (7 days)" : "Monthly Pro (30 days)";
     
+    // Compute client-side expiry (as fallback — server is authoritative)
+    const durations: Record<string, number> = {
+      daily:   24 * 60 * 60 * 1000,
+      weekly:  7  * 24 * 60 * 60 * 1000,
+      monthly: 30 * 24 * 60 * 60 * 1000,
+    };
+    const expiresAt = Date.now() + (durations[planId] ?? durations.daily);
+
     setPremiumUnlocked(true);
     setPremiumPlanName(planNameLabel);
+    setPlanExpiresAt(expiresAt);
     setIsPaywallOpen(false);
 
     const email = localStorage.getItem("user_email") || "";
 
-    // Sync upgraded status to CRM and Supabase DB
+    // Sync upgraded status to CRM
     if (currentUserEmail) {
       const name = currentUserEmail.includes("@") && !currentUserEmail.endsWith("@phone.otp")
         ? currentUserEmail.split("@")[0]
         : "Phone User";
       const isPhone = currentUserEmail.endsWith("@phone.otp");
       const cleanContact = isPhone ? currentUserEmail.split("@")[0] : currentUserEmail;
-      
       syncUserSession(name, cleanContact, "pro", isPhone ? "phone" : "email");
     }
-
-    // Unlock on backend IP usage store
-    try {
-      await fetch("/api/usage/unlock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-    } catch (err) {
-      console.error("Failed to unlock backend usage:", err);
-    }
+    // Note: /api/usage/unlock is now called inside PaywallModal's triggerPaymentSuccess
+    // (to capture the server-returned planExpiresAt). No double-call needed here.
   };
 
   // Reset/Revoke Premium license for testing
@@ -474,13 +501,25 @@ export default function App() {
                 <span className="text-xs text-neutral-500 font-mono hidden sm:inline">
                   Logged in: <strong className="text-neutral-800 font-bold">{currentUserEmail}</strong>
                 </span>
-                {premiumUnlocked ? (
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Sparkles size={10} /> PRO LICENSE
+                {premiumUnlocked && planExpiresAt ? (() => {
+                  const diff = planExpiresAt - Date.now();
+                  const hours = Math.floor(diff / (1000 * 60 * 60));
+                  const days  = Math.floor(hours / 24);
+                  const remH  = hours % 24;
+                  const mins  = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                  const label = days >= 1 ? `${days}d ${remH}h left` : hours >= 1 ? `${hours}h ${mins}m left` : `${mins}m left`;
+                  return (
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                      <Sparkles size={10} /> {premiumPlanName} · {label}
+                    </span>
+                  );
+                })() : premiumUnlocked ? (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                    <Sparkles size={10} /> PRO
                   </span>
                 ) : (
                   <span className="text-[10px] bg-neutral-100 text-neutral-600 font-mono px-2 py-0.5 rounded">
-                    Free Tier ({usageCount}/3)
+                    Free ({usageCount}/3)
                   </span>
                 )}
                 <span className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs font-bold text-neutral-700 tracking-tight border border-neutral-200">
@@ -1372,6 +1411,12 @@ export default function App() {
         onClose={() => setIsPaywallOpen(false)}
         onPaymentSuccess={handlePaymentSuccessUnlock}
         usageLimitReached={usageCount >= 3}
+        currentUserEmail={currentUserEmail}
+        planExpiresAt={planExpiresAt}
+        onUserSignedIn={(email) => {
+          setCurrentUserEmail(email);
+          localStorage.setItem("user_email", email);
+        }}
       />
 
     </div>
