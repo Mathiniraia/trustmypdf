@@ -721,6 +721,59 @@ app.get("/api/admin/users", (req, res) => {
   res.json({ admins: adminEmails, users });
 });
 
+// ─── ADMIN: Full CRM user list (decrypted emails + usage + plan) ─────────────
+app.get("/api/admin/crm-users", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(403).json({ error: "Unauthorized." });
+  }
+
+  try {
+    // Fetch all users from Supabase
+    const { data: supaUsers, error } = await supabase
+      .from("crm_users")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const now = Date.now();
+
+    // Decrypt emails and merge with local usage store
+    const users = (supaUsers || []).map((u: any) => {
+      const email = u.encrypted_email ? decryptData(u.encrypted_email) : null;
+      const phone = u.encrypted_phone ? decryptData(u.encrypted_phone) : null;
+
+      // Lookup live usage from local store
+      const usageKey = email ? `email:${email.toLowerCase()}` : null;
+      const usageEntry = usageKey ? ipUsageStore[usageKey] : null;
+      const isPremium = usageEntry ? isPremiumActive(usageEntry) : false;
+      const expiresAt = usageEntry?.unlockedUntil ?? 0;
+      const liveCount  = usageEntry?.count ?? u.usage_count ?? 0;
+      const livePlan   = isPremium ? (usageEntry?.planName ?? u.plan_status) : "free";
+
+      return {
+        id: u.id,
+        displayName: u.display_name,
+        email,
+        phone,
+        authProvider: u.auth_provider,
+        planStatus: livePlan,
+        usageCount: liveCount,
+        premiumActive: isPremium,
+        expiresAt: expiresAt > 0 ? new Date(expiresAt).toISOString() : null,
+        joinedAt: u.created_at,
+        isAdmin: email ? isAdminEmail(email) : false,
+      };
+    });
+
+    res.json({ users, total: users.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Configure Vite middleware in development or express.static in production
 async function setupServer() {
