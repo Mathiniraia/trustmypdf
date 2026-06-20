@@ -401,6 +401,26 @@ app.post("/api/crm/sync-user", async (req, res) => {
 // ================= PERSISTENT IP/ACCOUNT USAGE LIMITS =================
 const USAGE_FILE = path.join(process.cwd(), "ip_usage.json");
 
+// ─── ADMIN CONFIGURATION ──────────────────────────────────────────────────
+// Emails in this list get PERMANENT LIFETIME access — no payment, no limit.
+// Add your email here. You can also add partner / team emails.
+const ADMIN_WHITELIST: string[] = [
+  "mathinirai.a@gmail.com",   // Owner — permanent admin
+  // Add more admin emails below:
+  // "partner@example.com",
+];
+
+// Admin secret key — must match ADMIN_SECRET in your .env
+function isAdminRequest(req: express.Request): boolean {
+  const secret = req.headers["x-admin-secret"] as string;
+  return secret === (process.env.ADMIN_SECRET || "pdfeasy-admin-secret-2024");
+}
+
+function isAdminEmail(email: string): boolean {
+  return ADMIN_WHITELIST.map(e => e.toLowerCase()).includes(email.trim().toLowerCase());
+}
+
+
 // unlockedUntil: Unix ms timestamp — 0 means not unlocked.
 // After plan expires, unlockedUntil will be in the past and premium is revoked automatically.
 let ipUsageStore: Record<string, { count: number; unlockedUntil: number; planName: string }> = {};
@@ -465,6 +485,19 @@ function getUsageKey(req: express.Request, email?: string): string {
 
 app.get("/api/usage/status", (req, res) => {
   const email = req.query.email as string | undefined;
+
+  // ── Admin whitelist: permanent lifetime access ──
+  if (email && isAdminEmail(email)) {
+    return res.json({
+      count: 0,
+      allowed: true,
+      premium: true,
+      planExpiresAt: 9999999999999, // far future = lifetime
+      planName: "Admin (Lifetime)",
+      isAdmin: true,
+    });
+  }
+
   const key = getUsageKey(req, email);
   
   if (!ipUsageStore[key]) {
@@ -607,6 +640,85 @@ app.post("/api/usage/reset", async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// ─── ADMIN: Grant free access to any user ──────────────────────────────────
+// POST /api/admin/grant-access
+// Headers: x-admin-secret: <your-admin-secret>
+// Body: { email: "user@example.com", planId: "monthly" }  (planId optional, defaults to "annual")
+app.post("/api/admin/grant-access", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(403).json({ error: "Unauthorized. Invalid admin secret." });
+  }
+
+  const { email, planId = "annual" } = req.body;
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Valid email is required." });
+  }
+
+  const durationMs = PLAN_DURATIONS[planId] ?? PLAN_DURATIONS.annual;
+  const planLabel  = PLAN_LABELS[planId] ?? "Admin Grant";
+  const expiresAt  = Date.now() + durationMs;
+
+  const emailKey = getUsageKey(req, email);
+  if (!ipUsageStore[emailKey]) ipUsageStore[emailKey] = { count: 0, unlockedUntil: 0, planName: "free" };
+  ipUsageStore[emailKey].unlockedUntil = expiresAt;
+  ipUsageStore[emailKey].planName = `${planLabel} (Admin Grant)`;
+  ipUsageStore[emailKey].count = 0; // reset usage count too
+  saveUsage();
+
+  console.log(`[Admin Grant] ${email} → ${planLabel}, expires ${new Date(expiresAt).toISOString()}`);
+
+  // Sync to Supabase
+  if (email.trim()) {
+    const encryptedEmail = encryptData(email);
+    supabase
+      .from("crm_users")
+      .update({ plan_status: planId })
+      .eq("encrypted_email", encryptedEmail)
+      .then(({ error }) => {
+        if (error) console.warn("Supabase admin grant sync warning:", error.message);
+        else console.log(`[CRM Sync] Admin granted '${planId}' to ${email}`);
+      });
+  }
+
+  res.json({
+    success: true,
+    message: `✅ Access granted to ${email}`,
+    plan: planLabel,
+    expiresAt: new Date(expiresAt).toISOString(),
+  });
+});
+
+// ─── ADMIN: List all users with access ────────────────────────────────────
+app.get("/api/admin/users", (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(403).json({ error: "Unauthorized. Invalid admin secret." });
+  }
+
+  const now = Date.now();
+  const users = Object.entries(ipUsageStore)
+    .filter(([key]) => key.startsWith("email:"))
+    .map(([key, entry]) => ({
+      email: key.replace("email:", ""),
+      count: entry.count,
+      plan: entry.planName,
+      active: entry.unlockedUntil > now,
+      expiresAt: entry.unlockedUntil > 0 ? new Date(entry.unlockedUntil).toISOString() : null,
+      isAdmin: isAdminEmail(key.replace("email:", "")),
+    }));
+
+  const adminEmails = ADMIN_WHITELIST.map(email => ({
+    email,
+    count: 0,
+    plan: "Admin (Lifetime)",
+    active: true,
+    expiresAt: null,
+    isAdmin: true,
+  }));
+
+  res.json({ admins: adminEmails, users });
 });
 
 
