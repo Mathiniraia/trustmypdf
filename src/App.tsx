@@ -331,6 +331,41 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Dynamic page visit tracking for both Supabase activity logs and CRM bridge
+  useEffect(() => {
+    const user = auth.currentUser;
+    const userId = user ? user.uid : (localStorage.getItem("user_id") || "usr_anonymous");
+    const email = user ? (user.email || "") : (localStorage.getItem("user_email") || "");
+    const displayName = user ? (user.displayName || email.split("@")[0] || "User") : "Guest User";
+    const activeSlug = currentSlug ? `/${currentSlug}` : "/";
+
+    // 1. Log to Supabase user_page_visits table
+    logUserActivity(userId, displayName, activeSlug);
+
+    // 2. Log to CRM dashboard webhook (fire-and-forget)
+    (async () => {
+      try {
+        const crmBase = (import.meta as any).env?.VITE_CRM_BACKEND_URL || "http://localhost:3001";
+        await fetch(`${crmBase}/api/admin/log-page-visit`, {
+          method: "POST",
+          mode: "cors",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-email": "mathinirai.a@gmail.com",
+          },
+          body: JSON.stringify({
+            userId: userId,
+            slug: activeSlug,
+            name: displayName,
+            email: email || null,
+          }),
+        });
+      } catch (e) {
+        // Silent catch
+      }
+    })();
+  }, [currentSlug]);
+
   // FIREBASE AUTH STATE LIFECYCLE HANDLER
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -338,6 +373,7 @@ export default function App() {
         const email = user.email || "";
         setCurrentUserEmail(email);
         localStorage.setItem("user_email", email);
+        localStorage.setItem("user_id", user.uid);
 
         const displayName = user.displayName || email.split("@")[0] || "Google User";
         const avatarUrl = user.photoURL || null;
@@ -370,51 +406,10 @@ export default function App() {
         } catch (error: any) {
           console.error("Database box rejected the envelope:", error.message || error);
         }
-
-        // ── SUPABASE DIRECT ACTIVITY LOG ────────────────────────────────
-        // Writes to user_page_visits table immediately after auth.
-        // Fire-and-forget — does not block UI.
-        logUserActivity(user.uid, displayName, "homepage_conversion_flow");
-
-        // ── CRM NETWORK BRIDGE ──────────────────────────────────────────
-        // Fires silently in the background after every successful auth event.
-        // Does NOT block UI or await — pure fire-and-forget.
-        (async () => {
-          try {
-            const crmBase = (import.meta as any).env?.VITE_CRM_BACKEND_URL
-              || "http://localhost:3001";
-            const crmRes = await fetch(
-              `${crmBase}/api/admin/log-page-visit`,
-              {
-                method: "POST",
-                mode: "cors",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-admin-email": "mathinirai.a@gmail.com",
-                },
-                body: JSON.stringify({
-                  userId: user.uid,
-                  slug: "homepage_conversion_flow",
-                  name: displayName,
-                  email: email || null,
-                }),
-              }
-            );
-            if (crmRes.ok) {
-              console.log("🚀 Network Bridge SUCCESS: Data pushed to CRM!");
-            } else {
-              console.warn(
-                "❌ Network Bridge BROKEN: CRM rejected data channel with status:",
-                crmRes.status
-              );
-            }
-          } catch (bridgeErr: any) {
-            console.warn(
-              "❌ Network Bridge BROKEN: CRM rejected data channel with status:",
-              bridgeErr.message || bridgeErr
-            );
-          }
-        })();
+      } else {
+        setCurrentUserEmail(null);
+        localStorage.removeItem("user_email");
+        localStorage.removeItem("user_id");
       }
     });
 
@@ -471,8 +466,6 @@ export default function App() {
 
   // Check and increment attempt logic
   const handleUsageIncrement = async (): Promise<boolean> => {
-    if (premiumUnlocked) return true; // unlimited access
-
     try {
       const email = localStorage.getItem("user_email") || "";
       const response = await fetch("/api/usage/increment", {
@@ -487,6 +480,9 @@ export default function App() {
       }
       const data = await response.json();
       setUsageCount(data.count);
+      
+      if (premiumUnlocked) return true; // unlimited access
+
       if (!data.allowed) {
         setIsPaywallOpen(true);
         return false; // blocked
@@ -494,8 +490,25 @@ export default function App() {
       return true; // allowed
     } catch (err) {
       console.error("Usage limit check error:", err);
+      if (premiumUnlocked) return true;
       setIsPaywallOpen(true);
       return false;
+    }
+  };
+
+  // Log specific tool actions (drag_drop, convert, download) to Supabase
+  const handleLogAction = async (toolSlug: string, actionType: string) => {
+    try {
+      const email = localStorage.getItem("user_email") || "";
+      await fetch("/api/usage/log-action", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, toolSlug, actionType }),
+      });
+    } catch (err) {
+      console.error("Action logging failed:", err);
     }
   };
 
@@ -1050,6 +1063,7 @@ export default function App() {
                 tool={currentTool}
                 usageCount={usageCount}
                 incrementUsage={handleUsageIncrement}
+                logAction={handleLogAction}
                 onLimitExceeded={() => setIsPaywallOpen(true)}
               />
             </section>

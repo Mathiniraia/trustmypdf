@@ -27,6 +27,7 @@ export interface ToolWorkspaceProps {
   onLimitExceeded: () => void;
   usageCount: number;
   incrementUsage: () => Promise<boolean>;
+  logAction?: (toolSlug: string, actionType: string) => Promise<void>;
   key?: string;
 }
 

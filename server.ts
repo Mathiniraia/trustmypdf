@@ -573,6 +573,18 @@ app.post("/api/usage/increment", async (req, res) => {
   const { email } = req.body;
   const key = getUsageKey(req, email);
 
+  // Sync tool usage to CRM tool analytics — insert one row per use
+  const { toolSlug } = req.body;
+  if (toolSlug) {
+    supabase
+      .from("crm_tool_analytics")
+      .insert({ tool_slug: toolSlug })
+      .then(({ error }) => {
+        if (error) console.warn("[CRM Tool Analytics] sync warning:", error.message);
+        else console.log(`[CRM Tool Analytics] ${toolSlug} used`);
+      });
+  }
+
   if (!ipUsageStore[key]) {
     ipUsageStore[key] = { count: 0, unlockedUntil: 0, planName: "free" };
   }
@@ -618,22 +630,57 @@ app.post("/api/usage/increment", async (req, res) => {
       });
   }
 
-  // Sync tool usage to CRM tool analytics — insert one row per use
-  const { toolSlug } = req.body;
-  if (toolSlug) {
-    supabase
-      .from("crm_tool_analytics")
-      .insert({ tool_slug: toolSlug })
-      .then(({ error }) => {
-        if (error) console.warn("[CRM Tool Analytics] sync warning:", error.message);
-        else console.log(`[CRM Tool Analytics] ${toolSlug} used`);
-      });
-  }
-
   res.json({
     allowed: true,
     count: entry.count,
   });
+});
+
+app.post("/api/usage/log-action", async (req, res) => {
+  const { email, toolSlug, actionType } = req.body;
+  if (!toolSlug || !actionType) {
+    return res.status(400).json({ error: "Missing toolSlug or actionType" });
+  }
+
+  try {
+    let userId = "usr_anonymous";
+    let userName = "Guest User";
+
+    if (email && email.trim()) {
+      const encryptedEmail = encryptData(email);
+      const { data: user } = await supabase
+        .from("crm_users")
+        .select("id, display_name")
+        .eq("encrypted_email", encryptedEmail)
+        .single();
+      
+      if (user) {
+        userId = user.id;
+        userName = user.display_name || email.split("@")[0] || "User";
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("crm_user_actions")
+      .insert({
+        user_id: userId,
+        user_name: userName,
+        tool_slug: toolSlug,
+        action_type: actionType,
+      })
+      .select();
+
+    if (error) {
+      console.warn("[CRM User Action Log] error:", error.message);
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.log(`[CRM User Action Log] ${userName} -> ${toolSlug} -> ${actionType}`);
+    res.json({ success: true, action: data?.[0] });
+  } catch (err: any) {
+    console.error("[CRM User Action Log] failure:", err);
+    res.status(500).json({ error: err.message || "Failed to log action" });
+  }
 });
 
 app.post("/api/usage/unlock", async (req, res) => {
@@ -661,30 +708,45 @@ app.post("/api/usage/unlock", async (req, res) => {
   // Sync premium unlock to Supabase (plan + expiry + revoked flag)
   if (email && email.trim()) {
     const encryptedEmail = encryptData(email);
+    const dbPlanMap: Record<string, string> = {
+      daily: "pro",
+      weekly: "pro",
+      starter: "pro",
+      monthly: "pro",
+      annual: "pro",
+      lifetime: "lifetime"
+    };
+    const dbPlanStatus = dbPlanMap[planId] || "pro";
+
     supabase
       .from("crm_users")
-      .update({
-        plan_status: planId,
+      .upsert({
+        encrypted_email: encryptedEmail,
+        plan_status: dbPlanStatus,
         plan_expires_at: new Date(expiresAt).toISOString(),
         access_revoked: false,
-      })
-      .eq("encrypted_email", encryptedEmail)
+        display_name: email.split("@")[0],
+        auth_provider: "google",
+      }, { onConflict: "encrypted_email" })
       .then(({ error }) => {
         if (error) console.warn("Supabase unlock sync warning:", error.message);
-        else console.log(`[CRM Sync] Plan '${planId}' activated for ${email}, expires ${new Date(expiresAt).toISOString()}`);
+        else console.log(`[CRM Sync] Plan '${dbPlanStatus}' activated and user registered/updated for ${email}, expires ${new Date(expiresAt).toISOString()}`);
       });
 
     // Insert into crm_transactions
-    const planAmounts: Record<string, number> = { starter: 99, monthly: 199, annual: 999 };
+    const planAmounts: Record<string, number> = { daily: 99, weekly: 99, starter: 99, monthly: 199, annual: 999 };
     supabase.from("crm_transactions").insert({
       id: crypto.randomUUID(),
       user_id: null,  // populated by CRM via email lookup
+      user_name: email, // add user_name for visual lookup in Payments tab
       razorpay_payment_id: `pay_${Date.now()}`,
-      plan_type: planLabel,
+      razorpay_order_id: `order_${Date.now()}`,
+      plan_type: planId, // use planId (starter, monthly, annual, daily, weekly) to pass Supabase ENUM check constraint
       amount: planAmounts[planId] ?? 199,
+      amount_in_paise: (planAmounts[planId] ?? 199) * 100,
+      expires_at: new Date(expiresAt).toISOString(),
       plan_expires_at: new Date(expiresAt).toISOString(),
       status: "captured",
-      created_at: new Date().toISOString(),
     }).then(({ error }) => {
       if (error) console.warn("[CRM] Transaction insert warning:", error.message);
       else console.log(`[CRM Transactions] Payment recorded for ${email}`);
@@ -753,18 +815,30 @@ app.post("/api/admin/grant-access", async (req, res) => {
   // Sync to Supabase — plan, expiry, admin flag
   if (email.trim()) {
     const encryptedEmail = encryptData(email);
+    const dbPlanMap: Record<string, string> = {
+      daily: "pro",
+      weekly: "pro",
+      starter: "pro",
+      monthly: "pro",
+      annual: "pro",
+      lifetime: "lifetime"
+    };
+    const dbPlanStatus = dbPlanMap[planId] || "pro";
+
     supabase
       .from("crm_users")
-      .update({
-        plan_status: planId,
+      .upsert({
+        encrypted_email: encryptedEmail,
+        plan_status: dbPlanStatus,
         plan_expires_at: new Date(expiresAt).toISOString(),
         access_revoked: false,
         granted_by_admin: true,
-      })
-      .eq("encrypted_email", encryptedEmail)
+        display_name: email.split("@")[0],
+        auth_provider: "google",
+      }, { onConflict: "encrypted_email" })
       .then(({ error }) => {
         if (error) console.warn("Supabase admin grant sync warning:", error.message);
-        else console.log(`[CRM Sync] Admin granted '${planId}' to ${email} until ${new Date(expiresAt).toISOString()}`);
+        else console.log(`[CRM Sync] Admin granted '${dbPlanStatus}' to ${email} until ${new Date(expiresAt).toISOString()}`);
       });
 
     // Log admin grant as a transaction (using actual crm_transactions schema)
@@ -840,6 +914,125 @@ app.post("/api/admin/revoke-access", async (req, res) => {
 
   console.log(`[Admin Revoke] Access revoked for ${email}`);
   res.json({ success: true, message: `🚫 Access revoked for ${email}` });
+});
+
+// --- ADMIN CREDENTIALS & LOGIN LOGIC ---
+const CREDENTIALS_FILE = path.join(process.cwd(), "admin_cred.json");
+
+function getAdminCredentials() {
+  if (fs.existsSync(CREDENTIALS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(CREDENTIALS_FILE, "utf-8"));
+    } catch (e) {
+      // fallback
+    }
+  }
+  const defaultCreds = {
+    email: CRM_ADMIN_EMAIL,
+    password: "Mathi@1996"
+  };
+  fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(defaultCreds, null, 2));
+  return defaultCreds;
+}
+
+function updateAdminPassword(newPassword: string) {
+  const creds = getAdminCredentials();
+  creds.password = newPassword;
+  fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2));
+}
+
+// POST /api/admin/login
+app.post("/api/admin/login", (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
+  }
+
+  const creds = getAdminCredentials();
+  if (
+    email.toLowerCase().trim() === creds.email.toLowerCase().trim() &&
+    password === creds.password
+  ) {
+    return res.json({
+      success: true,
+      email: creds.email,
+      name: "Mathini (Admin)"
+    });
+  }
+
+  return res.status(401).json({ error: "Invalid email or password." });
+});
+
+// POST /api/admin/forgot-password
+app.post("/api/admin/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  const creds = getAdminCredentials();
+  if (email.toLowerCase().trim() !== creds.email.toLowerCase().trim()) {
+    return res.status(404).json({ error: "Admin email not found." });
+  }
+
+  // Generate a random new password (e.g. pdfeasy-1234)
+  const code = Math.floor(1000 + Math.random() * 9000);
+  const newPassword = `pdfeasy-${code}`;
+  updateAdminPassword(newPassword);
+
+  // Email content
+  const emailContent = `
+Subject: PDFEasy Admin CRM - Password Reset
+To: ${creds.email}
+Date: ${new Date().toISOString()}
+
+Hello Admin,
+
+A request was made to reset the password for your PDFEasy CRM Admin account.
+
+Your new generated password is:
+${newPassword}
+
+Please log in at: http://localhost:5173/admin using this password.
+
+Best regards,
+PDFEasy System Security
+  `;
+
+  // Log to console and local file
+  console.log(`[Forgot Password] Generating new password for ${creds.email}: ${newPassword}`);
+  const logFile = path.join(process.cwd(), "sent_emails.log");
+  fs.appendFileSync(logFile, `\n========================================\n${emailContent}\n`);
+
+  let sentInfo = "Email logged to sent_emails.log and console.";
+  try {
+    const nodemailer = await import("nodemailer").catch(() => null);
+    if (nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const transporter = nodemailer.default.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || "587"),
+        secure: process.env.SMTP_SECURE === "true",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+      await transporter.sendMail({
+        from: `"PDFEasy Security" <${process.env.SMTP_USER}>`,
+        to: creds.email,
+        subject: "PDFEasy Admin CRM - Password Reset",
+        text: emailContent.split("\n\n").slice(2).join("\n\n")
+      });
+      sentInfo = "A reset password has been dispatched to your inbox.";
+    }
+  } catch (err: any) {
+    console.warn("[Nodemailer Transporter Warning]:", err.message);
+  }
+
+  res.json({
+    success: true,
+    message: `Reset complete. ${sentInfo} (Password: ${newPassword})`
+  });
 });
 
 // ─── ADMIN: List all users with access ────────────────────────────────────

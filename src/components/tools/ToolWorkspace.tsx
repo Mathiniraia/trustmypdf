@@ -27,13 +27,20 @@ export default function ToolWorkspace({
   tool,
   onLimitExceeded,
   usageCount,
-  incrementUsage
+  incrementUsage,
+  logAction
 }: ToolWorkspaceProps) {
   // Main states
   // 1 = Dropzone / Interactive Setup, 2 = Processing, 3 = Success / Download Window
   const [stage, setStage] = useState<1 | 2 | 3>(1);
   const [files, setFiles] = useState<PDFFileInfo[]>([]);
   const [processingMessage, setProcessingMessage] = useState("Processing your files...");
+
+  const trackAction = (actionType: string) => {
+    if (logAction && tool.slug) {
+      logAction(tool.slug, actionType).catch(() => {});
+    }
+  };
   
   // Success state stats
   const [outputBlob, setOutputBlob] = useState<Blob | null>(null);
@@ -238,6 +245,7 @@ export default function ToolWorkspace({
           setSplitRange(`1-${targetFile.pageCount}`);
         }
       }
+      trackAction("drag_drop");
     } catch (err: any) {
       console.error(err);
       setDragError("Unable to open the selected document.");
@@ -433,6 +441,7 @@ export default function ToolWorkspace({
     }
 
     setStage(2); // Processing
+    trackAction("convert");
 
     try {
       if (tool.slug === "merge-pdf") {
@@ -902,6 +911,7 @@ export default function ToolWorkspace({
   // Download Trigger helper
   const handleDownloadFile = () => {
     if (!outputBlob) return;
+    trackAction("download");
     const link = document.createElement("a");
     const objectUrl = URL.createObjectURL(outputBlob);
     link.href = objectUrl;
