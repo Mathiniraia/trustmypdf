@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { 
   Layers, Scissors, FileImage, Trash2, RotateCw, 
   Minimize2, Shield, Gem, HelpCircle, Check, Sparkles, 
@@ -14,7 +14,7 @@ import {
 
 import { TOOLS } from "./toolsData";
 import { ToolDefinition } from "./types";
-import ToolWorkspace from "./components/tools/ToolWorkspace";
+const ToolWorkspace = lazy(() => import("./components/tools/ToolWorkspace"));
 import PaywallModal from "./components/payment/PaywallModal";
 import AdminDashboard, { isAdminEmail } from "./components/admin/AdminDashboard";
 import AdminPage from "./components/admin/AdminPage";
@@ -1096,14 +1096,21 @@ export default function App() {
 
             {/* TIER 1: CORE WORKSPACE UTILITY BLOCK */}
             <section id="tier_1_workspace_visualizer">
-              <ToolWorkspace 
-                key={currentTool.slug}
-                tool={currentTool}
-                usageCount={usageCount}
-                incrementUsage={handleUsageIncrement}
-                logAction={handleLogAction}
-                onLimitExceeded={() => setIsPaywallOpen(true)}
-              />
+              <Suspense fallback={
+                <div className="w-full h-64 flex flex-col items-center justify-center border border-dashed border-neutral-300 rounded-2xl bg-neutral-50/50">
+                  <div className="w-8 h-8 border-4 border-neutral-200 border-t-neutral-800 rounded-full animate-spin mb-4"></div>
+                  <p className="text-sm text-neutral-500 font-medium">Loading Tool Engine...</p>
+                </div>
+              }>
+                <ToolWorkspace 
+                  key={currentTool.slug}
+                  tool={currentTool}
+                  usageCount={usageCount}
+                  incrementUsage={handleUsageIncrement}
+                  logAction={handleLogAction}
+                  onLimitExceeded={() => setIsPaywallOpen(true)}
+                />
+              </Suspense>
             </section>
 
             {/* TIER 2: 3-STEP INFORMATIONAL GRID */}

@@ -10,7 +10,7 @@ import {
   Shield, Users, Mail, CheckCircle, XCircle, Clock,
   Calendar, Zap, RefreshCw, X, Crown, AlertTriangle,
   UserCheck, Send, Search, Star, Phone, Activity,
-  ChevronDown, TrendingUp, DollarSign, Lock
+  ChevronDown, TrendingUp, DollarSign, Lock, Download
 } from "lucide-react";
 
 const ADMIN_SECRET = "pdfeasy-admin-secret-2024";
@@ -85,6 +85,7 @@ export default function AdminDashboard({
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filterPlan, setFilterPlan] = useState<"all" | "premium" | "free">("all");
+  const [dateFilter, setDateFilter] = useState<string>("all-time");
   const [grantingFor, setGrantingFor] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; ok: boolean; msg: string }[]>([]);
 
@@ -173,13 +174,6 @@ export default function AdminDashboard({
     }
   };
 
-  // Stats
-  const totalUsers = users.length;
-  const premiumUsers = users.filter(u => u.premiumActive && !u.isAdmin).length;
-  const freeUsers = users.filter(u => !u.premiumActive && !u.isAdmin).length;
-  const adminCount = users.filter(u => u.isAdmin).length;
-
-  // Filter
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
@@ -190,30 +184,78 @@ export default function AdminDashboard({
       filterPlan === "all" ? true :
       filterPlan === "premium" ? u.premiumActive :
       !u.premiumActive;
-    return matchSearch && matchPlan;
+      
+    let matchDate = true;
+    if (dateFilter !== "all-time") {
+      const joined = new Date(u.joinedAt).getTime();
+      const now = Date.now();
+      const diffDays = (now - joined) / (1000 * 60 * 60 * 24);
+      
+      if (dateFilter === "last-24h" && diffDays > 1) matchDate = false;
+      if (dateFilter === "last-7d" && diffDays > 7) matchDate = false;
+      if (dateFilter === "last-month" && diffDays > 30) matchDate = false;
+      if (dateFilter === "last-quarter" && diffDays > 90) matchDate = false;
+      if (dateFilter === "last-year" && diffDays > 365) matchDate = false;
+    }
+    return matchSearch && matchPlan && matchDate;
   });
 
+  const totalUsers = filtered.length;
+  const premiumUsers = filtered.filter(u => u.premiumActive && !u.isAdmin).length;
+  const freeUsers = filtered.filter(u => !u.premiumActive && !u.isAdmin).length;
+  const adminCount = filtered.filter(u => u.isAdmin).length;
+
+  const exportToCSV = () => {
+    if (filtered.length === 0) return;
+    
+    const headers = ["ID", "Name", "Email", "Phone", "Auth Provider", "Plan Status", "Usage Count", "Premium Active", "Expires At", "Joined At", "Is Admin"];
+    const rows = filtered.map(u => [
+      u.id,
+      `"${(u.displayName || "").replace(/"/g, '""')}"`,
+      `"${(u.email || "").replace(/"/g, '""')}"`,
+      `"${(u.phone || "").replace(/"/g, '""')}"`,
+      u.authProvider,
+      u.planStatus,
+      u.usageCount.toString(),
+      u.premiumActive ? "Yes" : "No",
+      u.expiresAt ? new Date(u.expiresAt).toISOString() : "",
+      new Date(u.joinedAt).toISOString(),
+      u.isAdmin ? "Yes" : "No"
+    ]);
+    
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pdfeasy_crm_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-neutral-950/70 backdrop-blur-md">
-      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-neutral-200 flex flex-col max-h-[92vh] overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-neutral-50/90 backdrop-blur-md overflow-hidden">
+      <div className="w-full h-full max-w-7xl mx-auto flex flex-col bg-white shadow-[0_0_50px_rgba(0,0,0,0.05)] border-x border-neutral-200">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 bg-neutral-950 rounded-t-2xl shrink-0">
+        <div className="flex items-center justify-between px-8 py-5 bg-white border-b border-neutral-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-              <Shield size={15} className="text-white" />
+            <div className="w-10 h-10 bg-neutral-900 rounded-xl flex items-center justify-center">
+              <Shield size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-sm">CRM Dashboard</h2>
-              <p className="text-neutral-400 text-[10px]">{currentUserEmail}</p>
+              <h2 className="text-neutral-900 font-bold text-lg">CRM Dashboard</h2>
+              <p className="text-neutral-500 text-xs font-mono">{currentUserEmail}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={fetchUsers} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition cursor-pointer" title="Refresh">
-              <RefreshCw size={13} />
+          <div className="flex items-center gap-3">
+            <button onClick={fetchUsers} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-700 transition cursor-pointer text-xs font-bold" title="Refresh">
+              <RefreshCw size={14} /> Refresh
             </button>
-            <button onClick={onClose} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition cursor-pointer">
-              <X size={13} />
+            <button onClick={onClose} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white transition cursor-pointer text-xs font-bold">
+              <X size={14} /> Close
             </button>
           </div>
         </div>
@@ -303,32 +345,52 @@ export default function AdminDashboard({
           </div>
 
           {/* ── Filters ── */}
-          <div className="px-5 pt-3 pb-2 flex items-center gap-2 shrink-0">
-            <div className="relative flex-1">
+          <div className="px-5 pt-3 pb-2 flex flex-wrap items-center gap-3 shrink-0">
+            <div className="relative flex-1 min-w-[200px]">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
               <input
                 type="text"
                 placeholder="Search by name or email..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full text-xs pl-8 pr-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                className="w-full text-xs pl-8 pr-4 py-2.5 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900"
               />
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 border border-neutral-200 rounded-lg p-1 bg-neutral-50">
               {(["all", "premium", "free"] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilterPlan(f)}
-                  className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer capitalize ${
+                  className={`text-[10px] font-bold px-3 py-1.5 rounded-md transition cursor-pointer capitalize ${
                     filterPlan === f
-                      ? "bg-neutral-900 text-white border-neutral-900"
-                      : "bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400"
+                      ? "bg-white text-neutral-900 shadow-sm border border-neutral-200/50"
+                      : "bg-transparent text-neutral-500 hover:text-neutral-700"
                   }`}
                 >
                   {f}
                 </button>
               ))}
             </div>
+            
+            <div className="relative border border-neutral-200 rounded-lg bg-white px-3 py-2.5 flex items-center gap-2">
+               <Calendar size={12} className="text-neutral-400" />
+               <select 
+                 value={dateFilter} 
+                 onChange={(e) => setDateFilter(e.target.value)}
+                 className="text-[10px] font-bold text-neutral-700 bg-transparent outline-none cursor-pointer uppercase tracking-wider"
+               >
+                 <option value="all-time">All Time</option>
+                 <option value="last-24h">Last 24 Hours</option>
+                 <option value="last-7d">Last 7 Days</option>
+                 <option value="last-month">Last 30 Days</option>
+                 <option value="last-quarter">Last 90 Days</option>
+                 <option value="last-year">Last Year</option>
+               </select>
+            </div>
+            
+            <button onClick={exportToCSV} className="flex items-center gap-2 px-3 py-2 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 text-neutral-700 transition cursor-pointer text-[10px] font-bold uppercase tracking-wider">
+               <Download size={12} /> Export CSV
+            </button>
           </div>
 
           {/* ── User Table ── */}
