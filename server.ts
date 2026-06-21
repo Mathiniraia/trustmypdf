@@ -13,7 +13,7 @@ import { createRequire } from "module";
 // ── qpdf-WASM: initialise once and reuse across all requests ──────────────
 // @neslinesli93/qpdf-wasm ships a CJS module with an inline WASM loader.
 // We use createRequire so the ESM server.ts can resolve its CJS entry.
-const _require = createRequire(import.meta.url);
+const _require = typeof require !== "undefined" ? require : createRequire(import.meta.url);
 let _qpdfModulePromise: Promise<any> | null = null;
 function getQpdfModule(): Promise<any> {
   if (!_qpdfModulePromise) {
