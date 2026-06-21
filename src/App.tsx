@@ -18,7 +18,7 @@ import ToolWorkspace from "./components/tools/ToolWorkspace";
 import PaywallModal from "./components/payment/PaywallModal";
 import AdminDashboard, { isAdminEmail } from "./components/admin/AdminDashboard";
 import AdminPage from "./components/admin/AdminPage";
-import { signInWithPopup, signInWithRedirect, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, getAdditionalUserInfo } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import { logUserActivity } from "./lib/logUserActivity";
 
@@ -416,6 +416,16 @@ export default function App() {
     return () => unsubscribe();
   }, [premiumUnlocked]);
 
+  // URL Action Listener for Welcome Email CTA
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "unlock") {
+      setIsPaywallOpen(true);
+      // Clean up the URL so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // BACKEND IP/ACCOUNT USAGE STATUS INITIALIZER
   useEffect(() => {
     const fetchUsageStatus = async () => {
@@ -646,7 +656,7 @@ export default function App() {
                       console.error("Sign out failed:", err);
                     }
                     localStorage.removeItem("user_email");
-                    setCurrentUserEmail(null);
+                    window.location.reload();
                   }}
                   className="text-xs text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
                 >
@@ -774,7 +784,21 @@ export default function App() {
                         type="button"
                         onClick={async () => {
                           try {
-                            await signInWithPopup(auth, googleProvider);
+                            const credential = await signInWithPopup(auth, googleProvider);
+                            const additionalInfo = getAdditionalUserInfo(credential);
+                            
+                            // Trigger welcome email if they are a brand new signup
+                            if (additionalInfo?.isNewUser && credential.user.email) {
+                              fetch("http://localhost:5173/api/emails/welcome", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  email: credential.user.email,
+                                  displayName: credential.user.displayName
+                                })
+                              }).catch(err => console.error("Failed to trigger welcome email", err));
+                            }
+
                             setShowAuthModal(false);
                             resetAuthForm();
                             navigateToSlug("");
@@ -1385,17 +1409,10 @@ export default function App() {
 
                 {/* Left Side: Content & Action */}
                 <div className="flex-1 text-left space-y-6 max-w-xl">
-                  <span className="text-xs font-mono uppercase tracking-widest text-neutral-400 font-bold block">
-                    A BRIEF HISTORY OF PDF
-                  </span>
-                  
                   <div className="space-y-3">
                     <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 leading-tight">
                       One Format. Every Device.
                     </h3>
-                    <p className="text-xs sm:text-[13px] font-semibold text-neutral-500 uppercase tracking-wider font-mono">
-                      HOW A SOLUTION TO DOCUMENT FORMATTING BECAME A GLOBAL STANDARD.
-                    </p>
                   </div>
 
                   <p className="text-neutral-600 text-[13px] sm:text-sm leading-relaxed">
@@ -1407,7 +1424,7 @@ export default function App() {
                       onClick={() => setIsPaywallOpen(true)}
                       className="bg-neutral-950 hover:bg-black text-white font-bold text-sm tracking-wide py-3.5 px-16 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer text-center w-64 inline-flex items-center justify-center gap-2"
                     >
-                      Unlock Unlimited Access
+                      Unlock Pro
                     </button>
                   </div>
                 </div>

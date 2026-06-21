@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import multer from "multer";
 import { createRequire } from "module";
+import nodemailer from "nodemailer";
 
 // ── qpdf-WASM: initialise once and reuse across all requests ──────────────
 // @neslinesli93/qpdf-wasm ships a CJS module with an inline WASM loader.
@@ -30,6 +31,84 @@ app.use(express.json());
 app.use(cors());
 
 const PORT = 5173;
+
+// Email Transporter Setup
+let emailTransporter: nodemailer.Transporter;
+
+async function getEmailTransporter() {
+  if (emailTransporter) return emailTransporter;
+
+  if (process.env.SMTP_USER) {
+    emailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: parseInt(process.env.SMTP_PORT || "587"),
+      secure: process.env.SMTP_SECURE === "true" || false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  } else {
+    // Automatically create a free Ethereal test account if no real credentials are provided
+    console.log("No SMTP_USER found in .env. Creating a temporary Ethereal test account for emails...");
+    const testAccount = await nodemailer.createTestAccount();
+    emailTransporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    console.log("Ethereal test account created successfully.");
+  }
+  return emailTransporter;
+}
+
+const SENDER_EMAIL = process.env.SMTP_FROM || '"PDF Easy Team" <hello@pdfeasy.app>';
+
+// Send Welcome Email Endpoint
+app.post("/api/emails/welcome", async (req, res) => {
+  const { email, displayName } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  const name = displayName || email.split("@")[0];
+  const appUrl = "https://pdf-easy-zeta.vercel.app";
+
+  try {
+    const transporter = await getEmailTransporter();
+    const info = await transporter.sendMail({
+      from: SENDER_EMAIL,
+      to: email,
+      subject: "Welcome to PDF Easy! 🎉",
+      html: `
+        <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+          <h2 style="color: #000;">Welcome to PDF Easy, ${name}!</h2>
+          <p>We are thrilled to have you on board. PDF Easy is your all-in-one suite for modifying, merging, compressing, and protecting your documents effortlessly.</p>
+          
+          <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 30px 0;">
+            <h3 style="margin-top: 0;">Ready to unlock continuous, high-speed access?</h3>
+            <p>Upgrade to Pro today for priority cloud processing, mobile readiness, and unlimited operations across all 12 PDF workspace utility tools.</p>
+            <div style="text-align: center; margin-top: 25px;">
+              <a href="${appUrl}/?action=unlock" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Unlock Unlimited Access</a>
+            </div>
+          </div>
+          
+          <p>If you have any questions, feel free to reply directly to this email.</p>
+          <p>Best regards,<br/>The PDF Easy Team</p>
+        </div>
+      `,
+    });
+    console.log(`[Email] Welcome email sent to ${email}`);
+    const testUrl = nodemailer.getTestMessageUrl(info);
+    if (testUrl) console.log(`[Ethereal Test URL]: ${testUrl}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Email Error] Failed to send welcome email:", error);
+    res.status(500).json({ error: "Failed to send email" });
+  }
+});
 
 // Lazy Razorpay initialization
 let razorpayInstance: any = null;
@@ -107,12 +186,47 @@ app.post("/api/razorpay/order", async (req, res) => {
 app.post("/api/razorpay/verify", async (req, res) => {
   const { orderId, paymentId, signature, isDemo, planId, email, displayName } = req.body;
 
+  const sendPaymentSuccessEmail = async (userEmail: string, plan: string, duration: string) => {
+    if (!userEmail) return;
+    try {
+      const transporter = await getEmailTransporter();
+      const info = await transporter.sendMail({
+        from: SENDER_EMAIL,
+        to: userEmail,
+        subject: `Payment Successful! Welcome to ${plan} 🚀`,
+        html: `
+          <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+            <h2 style="color: #000;">Thank you for your payment!</h2>
+            <p>You have successfully unlocked <strong>${plan}</strong> for the next <strong>${duration}</strong>. You now have priority cloud access and unlimited PDF operations.</p>
+            <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0; margin: 20px 0;">
+              <p style="margin: 0; color: #166534; font-weight: bold;">Status: Premium Unlocked</p>
+            </div>
+            <p>Go ahead and do yourself whatever you want with your documents! We are thrilled to have your support.</p>
+            <p>Best,<br/>The PDF Easy Team</p>
+          </div>
+        `,
+      });
+      console.log(`[Email] Payment success email sent to ${userEmail}`);
+      const testUrl = nodemailer.getTestMessageUrl(info);
+      if (testUrl) console.log(`[Ethereal Test URL]: ${testUrl}`);
+    } catch (e) {
+      console.error("[Email Error] Failed to send payment success email:", e);
+    }
+  };
+
   const planLabelMap: Record<string, string> = {
     starter: "Starter",
     monthly: "Monthly Pro",
     annual:  "Annual Pro",
   };
   const planLabel = planLabelMap[planId] || "Monthly Pro";
+
+  const planDurationMap: Record<string, string> = {
+    starter: "7 Days",
+    monthly: "1 Month",
+    annual:  "1 Year",
+  };
+  const durationLabel = planDurationMap[planId] || "1 Month";
 
   if (isDemo || !getRazorpay()) {
     // Sandbox: still sync to CRM so you can see the flow
@@ -125,6 +239,7 @@ app.post("/api/razorpay/verify", async (req, res) => {
         razorpayPaymentId: paymentId || `demo_${Date.now()}`
       });
       console.log(`[CRM Payment] Demo payment synced for ${email} → ${planLabel}`);
+      sendPaymentSuccessEmail(email, planLabel, durationLabel);
     }
     return res.json({ success: true, message: "Demo transaction verified successfully!" });
   }
@@ -152,6 +267,7 @@ app.post("/api/razorpay/verify", async (req, res) => {
         razorpayPaymentId: paymentId
       });
       console.log(`[CRM Payment] Real payment synced for ${email} → ${planLabel} (${paymentId})`);
+      sendPaymentSuccessEmail(email, planLabel, durationLabel);
     }
     return res.json({ success: true });
   } else {
@@ -1200,6 +1316,62 @@ async function setupServer() {
     console.log(`Server started on http://0.0.0.0:${PORT}`);
   });
 }
+
+// ── Global Expiration Reminder CRON Job ───────────────────────────────────────
+// Runs every 12 hours to check for subscriptions expiring in less than 3 days
+setInterval(async () => {
+  const now = Date.now();
+  const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+  
+  for (const [key, entry] of Object.entries(ipUsageStore)) {
+    // Only process email accounts, not IPs
+    if (!key.startsWith("email:")) continue;
+    
+    // Ignore admins and non-active users
+    if (entry.unlockedUntil === Infinity || entry.unlockedUntil <= now) continue;
+    
+    const timeRemaining = entry.unlockedUntil - now;
+    
+    // If between 2 and 3 days remaining (so it triggers only once in this window)
+    if (timeRemaining > (2 * 24 * 60 * 60 * 1000) && timeRemaining <= threeDaysInMs) {
+      const email = key.replace("email:", "");
+      
+      // Prevent duplicate emails
+      if (!(entry as any).reminderSent) {
+        (entry as any).reminderSent = true;
+        saveUsage();
+        
+        try {
+          const transporter = await getEmailTransporter();
+          const info = await transporter.sendMail({
+            from: SENDER_EMAIL,
+            to: email,
+            subject: "Your PDF Easy Pro access is expiring soon ⏳",
+            html: `
+              <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                <h2 style="color: #000;">Your access limit will end soon!</h2>
+                <p>We hope you've been enjoying your Unlimited Access to PDF Easy.</p>
+                <p>This is a quick reminder that your <strong>${entry.planName}</strong> will expire in less than 3 days.</p>
+                <div style="background-color: #fffbeb; padding: 20px; border-radius: 12px; border: 1px solid #fef3c7; margin: 30px 0;">
+                  <p>Please recharge or pay your way to the next big thing to avoid any interruptions to your workflow.</p>
+                  <div style="text-align: center; margin-top: 25px;">
+                    <a href="https://pdf-easy-zeta.vercel.app/?action=unlock" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Recharge Now</a>
+                  </div>
+                </div>
+                <p>Best regards,<br/>The PDF Easy Team</p>
+              </div>
+            `,
+          });
+          console.log(`[Email] Expiration reminder sent to ${email}`);
+          const testUrl = nodemailer.getTestMessageUrl(info);
+          if (testUrl) console.log(`[Ethereal Test URL]: ${testUrl}`);
+        } catch (e) {
+          console.error("[Email Error] Failed to send expiration reminder:", e);
+        }
+      }
+    }
+  }
+}, 12 * 60 * 60 * 1000); // 12 hours
 
 setupServer();
 

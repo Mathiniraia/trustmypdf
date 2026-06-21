@@ -10,7 +10,7 @@ import {
   Clock, Calendar, Zap, Chrome, Phone, AlertCircle
 } from "lucide-react";
 import { PaymentPlan } from "../../types";
-import { signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth";
+import { signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, getAdditionalUserInfo } from "firebase/auth";
 import { auth, googleProvider } from "../../firebase";
 
 interface PaywallModalProps {
@@ -137,11 +137,11 @@ export default function PaywallModal({
 
   useEffect(() => {
     if (isOpen) {
-      setStep("plans");
+      setStep(usageLimitReached ? "limit_warning" : "plans");
       setErrorMessage("");
       setShowSandboxUI(false);
     }
-  }, [isOpen]);
+  }, [isOpen, usageLimitReached]);
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -160,6 +160,17 @@ export default function PaywallModal({
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const email = result.user.email || "";
+      const additionalInfo = getAdditionalUserInfo(result);
+      
+      // Trigger welcome email if they are a brand new signup
+      if (additionalInfo?.isNewUser && email) {
+        fetch("http://localhost:5173/api/emails/welcome", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, displayName: result.user.displayName })
+        }).catch(err => console.error("Failed to trigger welcome email", err));
+      }
+
       onUserSignedIn(email);
       setStep("checkout");
     } catch (err: any) {
@@ -175,6 +186,16 @@ export default function PaywallModal({
     setErrorMessage("");
     if (!emailInput.includes("@")) { setErrorMessage("Enter a valid email address."); return; }
     if (passwordInput.length < 6)  { setErrorMessage("Password must be at least 6 characters."); return; }
+    
+    // We assume any explicit email/password form submission here is a "signup" 
+    // because there is no separate login tab in this quick flow.
+    // We send the welcome email in the background.
+    fetch("http://localhost:5173/api/emails/welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailInput })
+    }).catch(err => console.error("Failed to trigger welcome email", err));
+
     // Simple local auth (no password server check — matches existing app pattern)
     localStorage.setItem("user_email", emailInput);
     onUserSignedIn(emailInput);
