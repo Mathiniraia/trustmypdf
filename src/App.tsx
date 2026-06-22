@@ -370,7 +370,7 @@ export default function App() {
   useEffect(() => {
     const activeTool = TOOLS.find(t => t.slug === currentSlug);
     if (activeTool) {
-      document.title = `${activeTool.name} - Free Online PDF Tool | PDF Easy`;
+      document.title = `${activeTool.name} - Free Online PDF Tool | PDF Eazy`;
       let metaDesc = document.querySelector('meta[name="description"]');
       if (!metaDesc) {
         metaDesc = document.createElement('meta');
@@ -379,7 +379,7 @@ export default function App() {
       }
       metaDesc.setAttribute('content', activeTool.seoText);
     } else {
-      document.title = "PDF Easy - Your Complete PDF Workspace";
+      document.title = "PDF Eazy - Your Complete PDF Workspace";
       let metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) {
         metaDesc.setAttribute('content', "Powerful PDF tools designed to help you work faster, stay organized, and get more done. Optimize, convert, and organize your files quickly and reliably.");
@@ -635,7 +635,7 @@ export default function App() {
               <span className="text-white font-bold text-lg">P</span>
             </div>
             <div>
-              <span className="font-bold text-lg tracking-tight text-neutral-900 block leading-tight">PDF Easy</span>
+              <span className="font-bold text-lg tracking-tight text-neutral-900 block leading-tight">PDF Eazy</span>
               <span className="text-[9px] text-neutral-400 font-medium font-mono uppercase block tracking-wider -mt-[1px]">One Tool for Every PDF Need</span>
             </div>
           </button>
@@ -759,7 +759,7 @@ export default function App() {
                     <div>
                       <h2 className="text-2xl font-bold tracking-tight text-neutral-900">
                         {authMode === "signup" && "Create your Free Account"}
-                        {authMode === "signin" && "Sign In to PDF Easy"}
+                        {authMode === "signin" && "Sign In to PDF Eazy"}
                         {authMode === "phone" && "Login via Phone OTP"}
                       </h2>
                       <p className="text-xs text-neutral-400 mt-1">
@@ -1471,7 +1471,7 @@ export default function App() {
                   <div className="relative rounded-2xl overflow-hidden border border-neutral-200/60 shadow-lg bg-white p-2 w-[340px] transform transition-all duration-700 ease-out group-hover/illustration:-translate-y-1 group-hover/illustration:scale-[1.01] group-hover/illustration:rotate-[1deg] group-hover/illustration:shadow-xl">
                     <img 
                       src="/premium_illustration_indian.png" 
-                      alt="Student studying with PDF Easy" 
+                      alt="Student studying with PDF Eazy" 
                       className="w-full h-auto rounded-xl object-contain"
                     />
                   </div>
@@ -1506,14 +1506,14 @@ export default function App() {
               <div className="text-center max-w-xl mx-auto mb-12">
                 <span className="text-xs font-bold tracking-wider text-neutral-400 uppercase block mb-2">User Testimonials</span>
                 <h3 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-neutral-900">What Our Users Say</h3>
-                <p className="text-sm text-neutral-500 mt-2">Discover why people around the globe choose PDF Easy daily.</p>
+                <p className="text-sm text-neutral-500 mt-2">Discover why people around the globe choose PDF Eazy daily.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
                 {/* Comment Box 1 */}
                 <div className="glass-panel border border-neutral-200/65 bg-white rounded-xl p-4 sm:p-5 flex flex-col justify-between hover:shadow-xs hover:border-neutral-300 transition-all duration-300">
                   <p className="text-xs text-neutral-600 leading-relaxed italic">
-                    "PDF Easy works flawlessly. Choosing to merge and rotate directly in seconds is an incredible upgrade that means zero hassle."
+                    "PDF Eazy works flawlessly. Choosing to merge and rotate directly in seconds is an incredible upgrade that means zero hassle."
                   </p>
                   <div className="flex items-center gap-3 mt-3 pt-3 border-t border-neutral-100">
                     <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">
@@ -1573,7 +1573,7 @@ export default function App() {
               P
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <span className="font-bold text-sm tracking-tight text-neutral-900">PDF Easy</span>
+              <span className="font-bold text-sm tracking-tight text-neutral-900">PDF Eazy</span>
               <span className="hidden sm:inline text-neutral-300">|</span>
               <span className="text-xs text-neutral-400">© 2026 PDFKit India. Built for modern remote workflows.</span>
             </div>

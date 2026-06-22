@@ -57,7 +57,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[PDF Easy] App crashed:", error, errorInfo);
+    console.error("[PDF Eazy] App crashed:", error, errorInfo);
   }
 
   override render() {

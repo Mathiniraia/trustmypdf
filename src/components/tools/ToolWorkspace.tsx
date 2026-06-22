@@ -426,16 +426,16 @@ export default function ToolWorkspace({
   // CORE CLIENT-SIDE HEAVY LIFTING METRIC PROCESSOR
   const executePDFAction = async () => {
     syncPasswordRefs();
-    console.log("[PDF Easy] executePDFAction called, tool:", tool.slug);
-    console.log("[PDF Easy] passwordRef.current:", passwordRef.current ? `"${passwordRef.current}" (${passwordRef.current.length} chars)` : "EMPTY");
-    console.log("[PDF Easy] files:", files.length, files[0]?.name);
-    console.log("[PDF Easy] localStorage usage:", localStorage.getItem("pdf_app_usage"));
+    console.log("[PDF Eazy] executePDFAction called, tool:", tool.slug);
+    console.log("[PDF Eazy] passwordRef.current:", passwordRef.current ? `"${passwordRef.current}" (${passwordRef.current.length} chars)` : "EMPTY");
+    console.log("[PDF Eazy] files:", files.length, files[0]?.name);
+    console.log("[PDF Eazy] localStorage usage:", localStorage.getItem("pdf_app_usage"));
 
     // 1. Guard check attempts counter in daily hook
     const proceed = await incrementUsage();
-    console.log("[PDF Easy] incrementUsage() returned:", proceed);
+    console.log("[PDF Eazy] incrementUsage() returned:", proceed);
     if (!proceed) {
-      console.warn("[PDF Easy] BLOCKED by usage limit — paywall shown");
+      console.warn("[PDF Eazy] BLOCKED by usage limit — paywall shown");
       onLimitExceeded();
       return;
     }
@@ -473,9 +473,9 @@ export default function ToolWorkspace({
         await doUnlockPDF();
       }
     } catch (err: any) {
-      console.error("[PDF Easy] CAUGHT ERROR:", err);
-      console.error("[PDF Easy] Error message:", err?.message);
-      console.error("[PDF Easy] Error stack:", err?.stack);
+      console.error("[PDF Eazy] CAUGHT ERROR:", err);
+      console.error("[PDF Eazy] Error message:", err?.message);
+      console.error("[PDF Eazy] Error stack:", err?.stack);
       // Show a clean user-friendly message, never expose stack traces
       const userMsg = err?.message && err.message.length < 200
         ? err.message

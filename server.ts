@@ -66,7 +66,7 @@ async function getEmailTransporter() {
   return emailTransporter;
 }
 
-const SENDER_EMAIL = process.env.SMTP_FROM || '"PDF Easy Team" <hello@pdfeasy.app>';
+const SENDER_EMAIL = process.env.SMTP_FROM || '"PDF Eazy Team" <hello@pdfeasy.app>';
 
 // Send Welcome Email Endpoint
 app.post("/api/emails/welcome", async (req, res) => {
@@ -81,11 +81,11 @@ app.post("/api/emails/welcome", async (req, res) => {
     const info = await transporter.sendMail({
       from: SENDER_EMAIL,
       to: email,
-      subject: "Welcome to PDF Easy! 🎉",
+      subject: "Welcome to PDF Eazy! 🎉",
       html: `
         <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
-          <h2 style="color: #000;">Welcome to PDF Easy, ${name}!</h2>
-          <p>We are thrilled to have you on board. PDF Easy is your all-in-one suite for modifying, merging, compressing, and protecting your documents effortlessly.</p>
+          <h2 style="color: #000;">Welcome to PDF Eazy, ${name}!</h2>
+          <p>We are thrilled to have you on board. PDF Eazy is your all-in-one suite for modifying, merging, compressing, and protecting your documents effortlessly.</p>
           
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 30px 0;">
             <h3 style="margin-top: 0;">Ready to unlock continuous, high-speed access?</h3>
@@ -96,7 +96,7 @@ app.post("/api/emails/welcome", async (req, res) => {
           </div>
           
           <p>If you have any questions, feel free to reply directly to this email.</p>
-          <p>Best regards,<br/>The PDF Easy Team</p>
+          <p>Best regards,<br/>The PDF Eazy Team</p>
         </div>
       `,
     });
@@ -202,7 +202,7 @@ app.post("/api/razorpay/verify", async (req, res) => {
               <p style="margin: 0; color: #166534; font-weight: bold;">Status: Premium Unlocked</p>
             </div>
             <p>Go ahead and do yourself whatever you want with your documents! We are thrilled to have your support.</p>
-            <p>Best,<br/>The PDF Easy Team</p>
+            <p>Best,<br/>The PDF Eazy Team</p>
           </div>
         `,
       });
@@ -1172,13 +1172,13 @@ app.post("/api/admin/forgot-password", async (req, res) => {
 
   // Email content
   const emailContent = `
-Subject: PDFEasy Admin CRM - Password Reset
+Subject: PDF Eazy Admin CRM - Password Reset
 To: ${creds.email}
 Date: ${new Date().toISOString()}
 
 Hello Admin,
 
-A request was made to reset the password for your PDFEasy CRM Admin account.
+A request was made to reset the password for your PDF Eazy CRM Admin account.
 
 Your new generated password is:
 ${newPassword}
@@ -1186,7 +1186,7 @@ ${newPassword}
 Please log in at: http://localhost:5173/admin using this password.
 
 Best regards,
-PDFEasy System Security
+PDF Eazy System Security
   `;
 
   // Log to console and local file
@@ -1208,9 +1208,9 @@ PDFEasy System Security
         }
       });
       await transporter.sendMail({
-        from: `"PDFEasy Security" <${process.env.SMTP_USER}>`,
+        from: `"PDF Eazy Security" <${process.env.SMTP_USER}>`,
         to: creds.email,
-        subject: "PDFEasy Admin CRM - Password Reset",
+        subject: "PDF Eazy Admin CRM - Password Reset",
         text: emailContent.split("\n\n").slice(2).join("\n\n")
       });
       sentInfo = "A reset password has been dispatched to your inbox.";
@@ -1419,11 +1419,11 @@ setInterval(async () => {
           const info = await transporter.sendMail({
             from: SENDER_EMAIL,
             to: email,
-            subject: "Your PDF Easy Pro access is expiring soon ⏳",
+            subject: "Your PDF Eazy Pro access is expiring soon ⏳",
             html: `
               <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
                 <h2 style="color: #000;">Your access limit will end soon!</h2>
-                <p>We hope you've been enjoying your Unlimited Access to PDF Easy.</p>
+                <p>We hope you've been enjoying your Unlimited Access to PDF Eazy.</p>
                 <p>This is a quick reminder that your <strong>${entry.planName}</strong> will expire in less than 3 days.</p>
                 <div style="background-color: #fffbeb; padding: 20px; border-radius: 12px; border: 1px solid #fef3c7; margin: 30px 0;">
                   <p>Please recharge or pay your way to the next big thing to avoid any interruptions to your workflow.</p>
@@ -1431,7 +1431,7 @@ setInterval(async () => {
                     <a href="https://pdf-easy-zeta.vercel.app/?action=unlock" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Recharge Now</a>
                   </div>
                 </div>
-                <p>Best regards,<br/>The PDF Easy Team</p>
+                <p>Best regards,<br/>The PDF Eazy Team</p>
               </div>
             `,
           });

@@ -348,7 +348,7 @@ export default function PaywallModal({
         key: orderData.keyId,
         amount: orderData.amount,
         currency: "INR",
-        name: "PDF Easy",
+        name: "PDF Eazy",
         description: `${selectedPlan.name} — ${selectedPlan.period}`,
         order_id: orderData.id,
         handler: async (response: any) => {
@@ -487,7 +487,7 @@ export default function PaywallModal({
               You are a Premium Customer
             </h2>
             <p className="text-neutral-500 mb-6 text-sm max-w-sm">
-              You have already unlocked unlimited access to PDF Easy. You can continue using all premium features without any limits!
+              You have already unlocked unlimited access to PDF Eazy. You can continue using all premium features without any limits!
             </p>
             {planExpiresAt && (
               <div className="mb-8 px-4 py-3 bg-neutral-50 rounded-xl border border-neutral-200">

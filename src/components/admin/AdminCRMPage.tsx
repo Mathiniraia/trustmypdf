@@ -89,7 +89,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           </div>
         </div>
         <h1 className="text-xl font-black text-neutral-900 text-center mb-1">Admin CRM</h1>
-        <p className="text-xs text-neutral-400 text-center mb-6">PDFEasy · Restricted Access</p>
+        <p className="text-xs text-neutral-400 text-center mb-6">PDF Eazy · Restricted Access</p>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="relative">
@@ -125,7 +125,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </form>
 
         <p className="text-[10px] text-neutral-300 text-center mt-5">
-          🔒 Access restricted to PDFEasy admin only
+          🔒 Access restricted to PDF Eazy admin only
         </p>
       </div>
     </div>
@@ -228,7 +228,7 @@ export default function AdminCRMPage() {
             <Shield size={13} className="text-white" />
           </div>
           <div>
-            <span className="text-white font-bold text-sm">PDFEasy CRM</span>
+            <span className="text-white font-bold text-sm">PDF Eazy CRM</span>
             <span className="text-neutral-500 text-[10px] ml-2">Admin Panel</span>
           </div>
         </div>
@@ -450,7 +450,7 @@ export default function AdminCRMPage() {
         </div>
 
         <p className="text-center text-[10px] text-neutral-400 pb-4">
-          PDFEasy Admin CRM · All data encrypted at rest in Supabase
+          PDF Eazy Admin CRM · All data encrypted at rest in Supabase
         </p>
       </div>
     </div>

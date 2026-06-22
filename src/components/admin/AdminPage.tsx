@@ -1,5 +1,5 @@
 /**
- * AdminPage.tsx — PDFEasy Built-in Admin Dashboard
+ * AdminPage.tsx — PDF Eazy Built-in Admin Dashboard
  * Route: /admin  |  Access: mathinirai.a@gmail.com only
  * Shows: Users · Payments · Tool Analytics · Activity Logs
  * Actions: Grant Access · Revoke Access
@@ -186,14 +186,14 @@ function AdminLoginGate({ onAuth }: { onAuth: (email: string) => void }) {
     <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center border border-neutral-100">
         
-        {/* PDFEasy Logo */}
+        {/* PDF Eazy Logo */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:scale-105 duration-300">
             <span className="text-white font-extrabold text-3xl">P</span>
           </div>
         </div>
 
-        <h1 className="text-xl font-black text-neutral-900 mb-1">PDFEasy Admin</h1>
+        <h1 className="text-xl font-black text-neutral-900 mb-1">PDF Eazy Admin</h1>
         <p className="text-xs text-neutral-400 mb-7">Restricted Access · Admin Only</p>
 
         {error && (
@@ -218,7 +218,7 @@ function AdminLoginGate({ onAuth }: { onAuth: (email: string) => void }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@pdfeasy.in"
+                  placeholder="admin@pdfeazy.in"
                   className="w-full px-4 py-3 pl-10 text-xs font-medium border-2 border-neutral-200 focus:border-neutral-900 rounded-xl outline-none transition"
                   required
                 />
@@ -279,7 +279,7 @@ function AdminLoginGate({ onAuth }: { onAuth: (email: string) => void }) {
                   type="email"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="admin@pdfeasy.in"
+                  placeholder="admin@pdfeazy.in"
                   className="w-full px-4 py-3 pl-10 text-xs font-medium border-2 border-neutral-200 focus:border-neutral-900 rounded-xl outline-none transition"
                   required
                   autoFocus
@@ -581,7 +581,7 @@ export default function AdminPage({ currentUserEmail, onBack }: AdminPageProps) 
           <div className="flex items-center gap-3">
             <button onClick={onBack}
               className="text-xs font-bold text-neutral-400 hover:text-neutral-700 transition cursor-pointer">
-              ← PDFEasy
+              ← PDF Eazy
             </button>
             <span className="text-neutral-200">/</span>
             <div className="flex items-center gap-2">

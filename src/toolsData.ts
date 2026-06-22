@@ -160,7 +160,7 @@ export const TOOLS: ToolDefinition[] = [
     faqs: [
       { q: "Can I edit existing text inside a PDF?", a: "Yes, you can edit text boxes, change fonts, and adjust alignment easily." },
       { q: "Can I add custom drawings or shapes?", a: "Yes, the edit board supports standard highlight shapes, pencil marks, and notes." },
-      { q: "Is the output file watermark-free?", a: "Yes, PDF Easy doesn't add any promotional watermarks to your custom edited files." }
+      { q: "Is the output file watermark-free?", a: "Yes, PDF Eazy doesn't add any promotional watermarks to your custom edited files." }
     ],
     seoText: "Edit PDF files online with our complete workspace. Add text annotations, highlight fields, insert signs, and adjust pages."
   },
@@ -196,7 +196,7 @@ export const TOOLS: ToolDefinition[] = [
     faqs: [
       { q: "Can I unlock a PDF if I do not know the password?", a: "No. You must enter the correct password to create an unlocked copy." },
       { q: "Is the unlocked file fully unencrypted?", a: "Yes. The exported copy opens without password prompts." },
-      { q: "Does PDF Easy keep my password?", a: "No. The password is used locally in your browser and is not stored or sent anywhere." }
+      { q: "Does PDF Eazy keep my password?", a: "No. The password is used locally in your browser and is not stored or sent anywhere." }
     ],
     seoText: "Create unlocked PDF copies after entering the correct password. Perfect for preparing statements and records for easy sharing."
   },

@@ -1,5 +1,5 @@
 /**
- * CRM Admin Dashboard — PDFEasy
+ * CRM Admin Dashboard — PDF Eazy
  * Full CRM: see all users, their plan, usage, expiry.
  * Grant access directly from the dashboard.
  * Only visible when logged in as admin.
