@@ -15,6 +15,7 @@ import { PDFFileInfo, ToolWorkspaceProps } from "../../types";
 import JSZip from "jszip";
 import { jsPDF } from "jspdf";
 import { decryptPDF, isEncrypted as checkIsEncrypted } from "@pdfsmaller/pdf-decrypt";
+import { Document, Packer, Paragraph, TextRun } from "docx";
 
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -472,6 +473,9 @@ export default function ToolWorkspace({
       } else if (tool.slug === "unlock-pdf") {
         setProcessingMessage("Decrypting, removing file permissions lock, and stripping passkey structures...");
         await doUnlockPDF();
+      } else if (tool.slug === "pdf-to-word") {
+        setProcessingMessage("Extracting text and generating Microsoft Word document...");
+        await doPdfToWord();
       }
     } catch (err: any) {
       console.error("[Trust My PDF] CAUGHT ERROR:", err);
@@ -909,6 +913,68 @@ export default function ToolWorkspace({
     setStage(3);
   };
 
+  // 10. PDF TO WORD ENGINE
+  const doPdfToWord = async () => {
+    const f = files[0];
+    if (!f || !f.pdfBytes) throw new Error("No PDF loaded.");
+
+    // Load PDF using pdfjsLib to extract text
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(f.pdfBytes) });
+    const pdf = await loadingTask.promise;
+    const numPages = pdf.numPages;
+
+    const children: Paragraph[] = [];
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      
+      let currentY: number | null = null;
+      let currentLine = "";
+
+      for (const item of textContent.items) {
+        if ('str' in item) {
+          const y = Math.round(item.transform[5]); // Y coordinate
+          if (currentY !== null && Math.abs(currentY - y) > 5) {
+            if (currentLine.trim()) {
+              children.push(new Paragraph({ children: [new TextRun(currentLine)] }));
+            }
+            currentLine = "";
+            currentY = y;
+          } else if (currentY === null) {
+            currentY = y;
+          }
+          currentLine += item.str;
+        }
+      }
+      if (currentLine.trim()) {
+        children.push(new Paragraph({ children: [new TextRun(currentLine)] }));
+      }
+      
+      // Try to simulate a page break if it's not the last page
+      // Paragraph doesn't have a direct pageBreak in simple initialization, so we just add spacing.
+      if (i < numPages) {
+        children.push(new Paragraph({ text: "" }));
+      }
+    }
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children,
+      }],
+    });
+
+    const docxBlob = await Packer.toBlob(doc);
+
+    setOriginalSize(f.size);
+    setNewSize(docxBlob.size);
+    setPageCountOutput(numPages);
+    setOutputBlob(docxBlob);
+    setOutputFileName(`${f.name.replace(/\.pdf$/i, "")}.docx`);
+    setStage(3);
+  };
+
   // Download Trigger helper
   const handleDownloadFile = () => {
     if (!outputBlob) return;
@@ -1025,7 +1091,7 @@ export default function ToolWorkspace({
           {/* Stage 1: Active Setup / Dropzone */}
           {stage === 1 && (
             <div>
-              {["pdf-to-word", "word-to-pdf", "edit-pdf", "sign-pdf"].includes(tool.slug) ? (
+              {["word-to-pdf", "edit-pdf", "sign-pdf"].includes(tool.slug) ? (
                 // COMING SOON WORKSPACE
                 <div className="flex flex-col items-center justify-center text-center py-12 px-6 max-w-md mx-auto space-y-6">
                   <div className="w-16 h-16 bg-neutral-100 border border-neutral-200 rounded-full flex items-center justify-center text-neutral-500">
