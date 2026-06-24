@@ -40,5 +40,45 @@ export const BLOG_POSTS: BlogPost[] = [
         </p>
       </div>
     ),
+  },
+  {
+    slug: "how-to-merge-pdf-files-for-free",
+    title: "How to Merge PDF Files for Free Without Uploading to the Cloud",
+    date: "June 25, 2026",
+    readTime: "3 min read",
+    excerpt: "Learn how to securely combine multiple PDF documents into a single file directly in your browser.",
+    content: () => (
+      <div className="space-y-6">
+        <p>
+          Whether you are combining tax documents, compiling a portfolio, or organizing school notes, merging PDF files is one of the most common document tasks. However, almost every free PDF merger online has a massive hidden catch: <strong>they require you to upload your sensitive files to their cloud servers.</strong>
+        </p>
+        <p>
+          If you are working with bank statements, legal contracts, or personal records, uploading them to a random third-party server is a massive security risk.
+        </p>
+
+        <h3 className="text-2xl font-bold text-neutral-900 mt-8 mb-4">The Solution: Client-Side Merging</h3>
+        <p>
+          This is exactly why we built the <strong>Trust My PDF Merger</strong>. Instead of sending your files to our servers, our tool downloads the merging engine directly into your browser. This means your files <strong>never leave your computer</strong>. It is 100% private, completely free, and works instantly even if you disconnect from the internet after loading the page.
+        </p>
+
+        <h3 className="text-2xl font-bold text-neutral-900 mt-8 mb-4">How to Merge Your PDFs in 3 Steps</h3>
+        <ol className="list-decimal pl-6 space-y-4">
+          <li>
+            <strong>Select Your Files:</strong> Open our <a href="/" className="font-bold underline">Merge PDF tool</a> and drag-and-drop all the PDF files you want to combine into the workspace.
+          </li>
+          <li>
+            <strong>Reorder the Pages:</strong> You will see a visual preview of every single page. You can drag the files around to change their order, or even delete specific pages you don't need in the final document.
+          </li>
+          <li>
+            <strong>Click Merge:</strong> Hit the "Merge" button. Because the processing happens locally on your machine, it takes milliseconds. Your new, combined PDF will instantly download to your device.
+          </li>
+        </ol>
+
+        <h3 className="text-2xl font-bold text-neutral-900 mt-8 mb-4">No Limits, No Watermarks</h3>
+        <p>
+          Unlike other free tools that lock you out after 2 files or stamp a giant watermark on your document, Trust My PDF provides a completely clean experience. Go ahead and try it out yourself!
+        </p>
+      </div>
+    ),
   }
 ];
