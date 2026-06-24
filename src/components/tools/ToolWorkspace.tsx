@@ -8,9 +8,10 @@ import {
   FileText, CheckCircle, RefreshCw, Download, 
   Trash2, RotateCw, Shield, AlertTriangle,
   Scissors, FileImage, Layers, ShieldCheck, Minimize2,
-  Lock, Plus, X, ArrowRight, Settings, Check, Clock, Calendar, Sparkles, ChevronRight, Crown
+  Lock, Plus, X, ArrowRight, Settings, Check, Clock, Calendar, Sparkles, ChevronRight, Crown,
+  Bold, Italic, Underline, Palette, Type, Move
 } from "lucide-react";
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument, degrees, StandardFonts, rgb, rgb as pdfRgb } from "pdf-lib";
 import { PDFFileInfo, ToolWorkspaceProps } from "../../types";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
@@ -81,7 +82,20 @@ export default function ToolWorkspace({
   const [singleFileTotalPages, setSingleFileTotalPages] = useState(0);
 
   // Edit PDF State
-  const [editOverlays, setEditOverlays] = useState<{id: string, text: string, x: number, y: number, fontSize: number}[]>([]);
+  const [editOverlays, setEditOverlays] = useState<{
+    id: string, 
+    pageIndex: number, 
+    text: string, 
+    x: number, 
+    y: number, 
+    fontSize: number,
+    fontFamily: string,
+    color: string,
+    isBold: boolean,
+    isItalic: boolean,
+    isUnderline: boolean
+  }[]>([]);
+  const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
   
   // Sign PDF State
   const signCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,6 +104,7 @@ export default function ToolWorkspace({
   // Editor Viewport States
   const [imgRenderWidth, setImgRenderWidth] = useState(0);
   const [imgRenderHeight, setImgRenderHeight] = useState(0);
+  const [pageDimensions, setPageDimensions] = useState<Record<number, {width: number, height: number}>>({});
 
   // Previews & Encryption States
   const [pdfPreviews, setPdfPreviews] = useState<string[]>([]);
@@ -1073,26 +1088,76 @@ export default function ToolWorkspace({
     const bytesCopy = new Uint8Array(f.pdfBytes);
     const pdfDoc = await PDFDocument.load(bytesCopy, { ignoreEncryption: true });
     
-    const pages = pdfDoc.getPages();
-    const firstPage = pages[0];
-    const { width: pdfWidth, height: pdfHeight } = firstPage.getSize();
+    // Embed fonts
+    const fonts: Record<string, any> = {
+      Helvetica: {
+        normal: await pdfDoc.embedFont(StandardFonts.Helvetica),
+        bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+        italic: await pdfDoc.embedFont(StandardFonts.HelveticaOblique),
+        boldItalic: await pdfDoc.embedFont(StandardFonts.HelveticaBoldOblique)
+      },
+      TimesRoman: {
+        normal: await pdfDoc.embedFont(StandardFonts.TimesRoman),
+        bold: await pdfDoc.embedFont(StandardFonts.TimesRomanBold),
+        italic: await pdfDoc.embedFont(StandardFonts.TimesRomanItalic),
+        boldItalic: await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic)
+      },
+      Courier: {
+        normal: await pdfDoc.embedFont(StandardFonts.Courier),
+        bold: await pdfDoc.embedFont(StandardFonts.CourierBold),
+        italic: await pdfDoc.embedFont(StandardFonts.CourierOblique),
+        boldItalic: await pdfDoc.embedFont(StandardFonts.CourierBoldOblique)
+      }
+    };
     
-    // Map screen coordinates to PDF coordinates
-    const scaleX = pdfWidth / (imgRenderWidth || pdfWidth);
-    const scaleY = pdfHeight / (imgRenderHeight || pdfHeight);
+    const pages = pdfDoc.getPages();
     
     for (const overlay of editOverlays) {
-      if (overlay.text.trim()) {
-        const pdfX = overlay.x * scaleX;
-        // In PDF coordinate system, Y=0 is the bottom.
-        // We subtract the text height to align it properly.
-        const pdfY = pdfHeight - (overlay.y * scaleY) - (overlay.fontSize * scaleY);
+      if (overlay.text.trim() && pages[overlay.pageIndex]) {
+        const page = pages[overlay.pageIndex];
+        const { width: pdfWidth, height: pdfHeight } = page.getSize();
         
-        firstPage.drawText(overlay.text, {
+        const renderWidth = pageDimensions[overlay.pageIndex]?.width || pdfWidth;
+        const renderHeight = pageDimensions[overlay.pageIndex]?.height || pdfHeight;
+        
+        const scaleX = pdfWidth / renderWidth;
+        const scaleY = pdfHeight / renderHeight;
+        
+        const fontSizeScale = overlay.fontSize * scaleX;
+        const pdfX = overlay.x * scaleX;
+        // Adjust for standard font baselines
+        const pdfY = pdfHeight - (overlay.y * scaleY) - (fontSizeScale * 0.8);
+        
+        // Font Selection
+        let fontSet = fonts[overlay.fontFamily] || fonts.Helvetica;
+        let pdfFont = fontSet.normal;
+        if (overlay.isBold && overlay.isItalic) pdfFont = fontSet.boldItalic;
+        else if (overlay.isBold) pdfFont = fontSet.bold;
+        else if (overlay.isItalic) pdfFont = fontSet.italic;
+        
+        // Color Parsing (#RRGGBB to 0-1)
+        const hex = overlay.color.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16) / 255;
+        const g = parseInt(hex.substring(2, 4), 16) / 255;
+        const b = parseInt(hex.substring(4, 6), 16) / 255;
+        
+        page.drawText(overlay.text, {
           x: pdfX,
           y: pdfY, 
-          size: overlay.fontSize * scaleX
+          size: fontSizeScale,
+          font: pdfFont,
+          color: pdfRgb(r, g, b)
         });
+        
+        if (overlay.isUnderline) {
+          const textWidth = pdfFont.widthOfTextAtSize(overlay.text, fontSizeScale);
+          page.drawLine({
+            start: { x: pdfX, y: pdfY - (fontSizeScale * 0.1) },
+            end: { x: pdfX + textWidth, y: pdfY - (fontSizeScale * 0.1) },
+            thickness: fontSizeScale * 0.05,
+            color: pdfRgb(r, g, b)
+          });
+        }
       }
     }
     
@@ -1842,11 +1907,81 @@ export default function ToolWorkspace({
                           <label className="text-xs font-semibold text-neutral-800 tracking-wide uppercase">Interactive PDF Editor</label>
                         </div>
                         
-                        <div className="relative w-full h-[600px] border border-neutral-200 bg-neutral-100 rounded-lg overflow-hidden flex items-center justify-center">
-                          {!pdfPreviews[0] ? (
+                        {/* Floating Toolbar for Active Overlay */}
+                        {activeOverlayId && (
+                          <div className="sticky top-0 z-20 flex flex-wrap gap-2 items-center bg-white border border-neutral-200 shadow-sm rounded-lg p-2 mb-2">
+                            {editOverlays.find(o => o.id === activeOverlayId) && (() => {
+                              const overlay = editOverlays.find(o => o.id === activeOverlayId)!;
+                              const updateOverlay = (updates: Partial<typeof overlay>) => {
+                                setEditOverlays(editOverlays.map(o => o.id === overlay.id ? { ...o, ...updates } : o));
+                              };
+                              return (
+                                <>
+                                  <select 
+                                    className="text-xs border border-neutral-200 rounded px-2 py-1"
+                                    value={overlay.fontFamily}
+                                    onChange={(e) => updateOverlay({ fontFamily: e.target.value })}
+                                  >
+                                    <option value="Helvetica">Helvetica</option>
+                                    <option value="TimesRoman">Times Roman</option>
+                                    <option value="Courier">Courier</option>
+                                  </select>
+                                  
+                                  <div className="flex items-center gap-1 border border-neutral-200 rounded px-1">
+                                    <input 
+                                      type="color" 
+                                      value={overlay.color}
+                                      onChange={(e) => updateOverlay({ color: e.target.value })}
+                                      className="w-6 h-6 p-0 border-none rounded cursor-pointer"
+                                    />
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1 border-l border-r border-neutral-200 px-2">
+                                    <button 
+                                      onClick={() => updateOverlay({ isBold: !overlay.isBold })}
+                                      className={`p-1.5 rounded hover:bg-neutral-100 ${overlay.isBold ? 'bg-neutral-200' : ''}`}
+                                    ><Bold size={14} /></button>
+                                    <button 
+                                      onClick={() => updateOverlay({ isItalic: !overlay.isItalic })}
+                                      className={`p-1.5 rounded hover:bg-neutral-100 ${overlay.isItalic ? 'bg-neutral-200' : ''}`}
+                                    ><Italic size={14} /></button>
+                                    <button 
+                                      onClick={() => updateOverlay({ isUnderline: !overlay.isUnderline })}
+                                      className={`p-1.5 rounded hover:bg-neutral-100 ${overlay.isUnderline ? 'bg-neutral-200' : ''}`}
+                                    ><Underline size={14} /></button>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-1">
+                                    <button 
+                                      onClick={() => updateOverlay({ fontSize: Math.max(8, overlay.fontSize - 2) })}
+                                      className="p-1.5 rounded hover:bg-neutral-100 text-xs font-bold"
+                                    >A-</button>
+                                    <span className="text-xs w-6 text-center">{overlay.fontSize}</span>
+                                    <button 
+                                      onClick={() => updateOverlay({ fontSize: Math.min(120, overlay.fontSize + 2) })}
+                                      className="p-1.5 rounded hover:bg-neutral-100 text-xs font-bold"
+                                    >A+</button>
+                                  </div>
+                                  
+                                  <div className="flex-1" />
+                                  <button 
+                                    onClick={() => {
+                                      setEditOverlays(editOverlays.filter(o => o.id !== overlay.id));
+                                      setActiveOverlayId(null);
+                                    }}
+                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                  ><Trash2 size={14} /></button>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        <div className="relative w-full h-[700px] border border-neutral-200 bg-neutral-100 rounded-lg overflow-hidden flex items-center justify-center">
+                          {!pdfPreviews.length ? (
                             <p className="text-neutral-400 font-mono text-sm animate-pulse">Rendering preview...</p>
                           ) : (
-                            <TransformWrapper initialScale={1} minScale={0.5} maxScale={4} centerOnInit>
+                            <TransformWrapper initialScale={1} minScale={0.2} maxScale={4} centerOnInit>
                               {({ zoomIn, zoomOut, resetTransform }) => (
                                 <>
                                   <div className="absolute top-4 right-4 z-10 flex gap-2 bg-white shadow-sm rounded-lg p-1">
@@ -1854,60 +1989,96 @@ export default function ToolWorkspace({
                                     <button onClick={() => zoomOut()} className="p-2 hover:bg-neutral-100 rounded"><Minimize2 size={16} /></button>
                                     <button onClick={() => resetTransform()} className="p-2 hover:bg-neutral-100 rounded"><RefreshCw size={16} /></button>
                                   </div>
-                                  <TransformComponent wrapperClass="w-full h-full" contentClass="relative">
-                                    <div 
-                                      className="relative shadow-lg bg-white"
-                                      style={{ width: imgRenderWidth || 'auto', height: imgRenderHeight || 'auto' }}
-                                      onClick={(e) => {
-                                        if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'IMG') {
-                                          const rect = e.currentTarget.getBoundingClientRect();
-                                          const x = e.clientX - rect.left;
-                                          const y = e.clientY - rect.top;
-                                          setEditOverlays([...editOverlays, { id: Date.now().toString(), text: "Double click to edit", x, y, fontSize: 16 }]);
-                                        }
-                                      }}
-                                    >
-                                      <img 
-                                        src={pdfPreviews[0]} 
-                                        className="w-auto h-auto pointer-events-none" 
-                                        alt="Document Page" 
-                                        onLoad={(e) => {
-                                          setImgRenderWidth(e.currentTarget.naturalWidth);
-                                          setImgRenderHeight(e.currentTarget.naturalHeight);
-                                        }}
-                                      />
-                                      {editOverlays.map((overlay, index) => (
-                                        <Draggable
-                                          key={overlay.id}
-                                          defaultPosition={{ x: overlay.x, y: overlay.y }}
-                                          onStop={(e, data) => {
-                                            const newArr = [...editOverlays];
-                                            newArr[index].x = data.x;
-                                            newArr[index].y = data.y;
-                                            setEditOverlays(newArr);
+                                  <TransformComponent wrapperClass="w-full h-full" contentClass="relative py-8">
+                                    <div className="flex flex-col gap-6 items-center">
+                                      {pdfPreviews.map((previewUrl, pageIndex) => (
+                                        <div 
+                                          key={pageIndex}
+                                          className="relative shadow-lg bg-white"
+                                          style={{ 
+                                            width: pageDimensions[pageIndex]?.width || 'auto', 
+                                            height: pageDimensions[pageIndex]?.height || 'auto' 
                                           }}
-                                          bounds="parent"
-                                          cancel=".text-input-field"
+                                          onClick={(e) => {
+                                            if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'IMG') {
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              // Extract the current scale from the TransformComponent
+                                              const transformStr = (e.currentTarget.closest('.react-transform-component') as HTMLElement)?.style.transform || '';
+                                              const scaleMatch = transformStr.match(/scale\(([^)]+)\)/);
+                                              const currentScale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+                                              
+                                              const x = (e.clientX - rect.left) / currentScale;
+                                              const y = (e.clientY - rect.top) / currentScale;
+                                              
+                                              const newId = Date.now().toString();
+                                              setEditOverlays([...editOverlays, { 
+                                                id: newId, 
+                                                pageIndex,
+                                                text: "Double click to edit", 
+                                                x, 
+                                                y, 
+                                                fontSize: 16,
+                                                fontFamily: 'Helvetica',
+                                                color: '#000000',
+                                                isBold: false,
+                                                isItalic: false,
+                                                isUnderline: false
+                                              }]);
+                                              setActiveOverlayId(newId);
+                                            }
+                                          }}
                                         >
-                                          <div className="absolute cursor-move flex items-center group">
-                                            <input
-                                              className="text-input-field bg-transparent border-2 border-transparent hover:border-dashed hover:border-blue-400 focus:border-solid focus:border-blue-500 focus:bg-white/50 outline-none p-1 font-sans font-bold text-black min-w-[100px]"
-                                              style={{ fontSize: `${overlay.fontSize}px` }}
-                                              value={overlay.text}
-                                              onChange={(e) => {
-                                                const newArr = [...editOverlays];
-                                                newArr[index].text = e.target.value;
-                                                setEditOverlays(newArr);
+                                          <img 
+                                            src={previewUrl} 
+                                            className="w-auto h-auto pointer-events-none block" 
+                                            alt={`Page ${pageIndex + 1}`} 
+                                            onLoad={(e) => {
+                                              setPageDimensions(prev => ({
+                                                ...prev,
+                                                [pageIndex]: {
+                                                  width: e.currentTarget.naturalWidth,
+                                                  height: e.currentTarget.naturalHeight
+                                                }
+                                              }));
+                                            }}
+                                          />
+                                          <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded">Page {pageIndex + 1}</div>
+                                          
+                                          {editOverlays.filter(o => o.pageIndex === pageIndex).map((overlay) => (
+                                            <Draggable
+                                              key={overlay.id}
+                                              defaultPosition={{ x: overlay.x, y: overlay.y }}
+                                              onStop={(e, data) => {
+                                                setEditOverlays(editOverlays.map(o => o.id === overlay.id ? { ...o, x: data.x, y: data.y } : o));
                                               }}
-                                            />
-                                            <button 
-                                              onClick={() => setEditOverlays(editOverlays.filter(o => o.id !== overlay.id))}
-                                              className="opacity-0 group-hover:opacity-100 absolute -right-6 top-1 text-red-500 hover:text-red-700 bg-white rounded-full shadow-sm p-1"
+                                              onStart={() => setActiveOverlayId(overlay.id)}
+                                              bounds="parent"
+                                              cancel=".text-input-field"
                                             >
-                                              <X size={12} />
-                                            </button>
-                                          </div>
-                                        </Draggable>
+                                              <div 
+                                                className={`absolute cursor-move flex items-center group ${activeOverlayId === overlay.id ? 'ring-2 ring-blue-500 rounded' : ''}`}
+                                                onClick={(e) => { e.stopPropagation(); setActiveOverlayId(overlay.id); }}
+                                              >
+                                                <input
+                                                  className="text-input-field bg-transparent border-2 border-transparent hover:border-dashed hover:border-blue-400 focus:border-solid focus:border-blue-500 focus:bg-white/50 outline-none p-1 min-w-[10px]"
+                                                  style={{ 
+                                                    fontSize: `${overlay.fontSize}px`,
+                                                    fontFamily: overlay.fontFamily,
+                                                    color: overlay.color,
+                                                    fontWeight: overlay.isBold ? 'bold' : 'normal',
+                                                    fontStyle: overlay.isItalic ? 'italic' : 'normal',
+                                                    textDecoration: overlay.isUnderline ? 'underline' : 'none',
+                                                    width: `${Math.max(10, overlay.text.length * (overlay.fontSize * 0.6))}px` // Auto scale width roughly
+                                                  }}
+                                                  value={overlay.text}
+                                                  onChange={(e) => {
+                                                    setEditOverlays(editOverlays.map(o => o.id === overlay.id ? { ...o, text: e.target.value } : o));
+                                                  }}
+                                                />
+                                              </div>
+                                            </Draggable>
+                                          ))}
+                                        </div>
                                       ))}
                                     </div>
                                   </TransformComponent>
@@ -1916,7 +2087,7 @@ export default function ToolWorkspace({
                             </TransformWrapper>
                           )}
                         </div>
-                        <p className="text-xs text-neutral-500 font-mono text-center">Click anywhere on the document to add text. Drag to reposition.</p>
+                        <p className="text-xs text-neutral-500 font-mono text-center">Click anywhere on any page to add text. Drag to reposition.</p>
                       </div>
                     )}
 
