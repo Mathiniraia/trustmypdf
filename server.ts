@@ -66,7 +66,58 @@ async function getEmailTransporter() {
   return emailTransporter;
 }
 
-const SENDER_EMAIL = process.env.SMTP_FROM || '"Trust My PDF Team" <hello@pdfeasy.app>';
+const SENDER_EMAIL = process.env.SMTP_FROM || '"Trust My PDF" <hello@trustmypdf.in>';
+
+function buildEmailTemplate(title: string, bodyHtml: string) {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; -webkit-font-smoothing: antialiased; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f8fafc; padding-bottom: 40px; }
+        .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; font-family: sans-serif; color: #334155; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); margin-top: 40px; }
+        .header { padding: 30px; text-align: center; border-bottom: 1px solid #f1f5f9; }
+        .header h1 { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase; }
+        .content { padding: 40px 30px; line-height: 1.6; font-size: 16px; }
+        .content h2 { color: #0f172a; font-size: 22px; margin-top: 0; margin-bottom: 20px; font-weight: 700; }
+        .content p { margin-top: 0; margin-bottom: 20px; }
+        .button-wrap { text-align: center; margin: 35px 0; }
+        .button { background-color: #0f172a; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block; font-size: 16px; }
+        .card { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 25px; border-radius: 12px; margin: 30px 0; text-align: center; }
+        .card-danger { background-color: #fef2f2; border: 1px solid #fecaca; padding: 25px; border-radius: 12px; margin: 30px 0; text-align: center; }
+        .card-success { background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 25px; border-radius: 12px; margin: 30px 0; text-align: center; }
+        .card h3, .card-danger h3, .card-success h3 { margin-top: 0; margin-bottom: 10px; font-size: 18px; }
+        .card-danger h3 { color: #b91c1c; }
+        .card-success h3 { color: #15803d; }
+        .footer { text-align: center; padding: 30px; font-size: 13px; color: #64748b; }
+      </style>
+    </head>
+    <body>
+      <center class="wrapper">
+        <table class="main" width="100%">
+          <tr>
+            <td class="header">
+              <h1>Trust My PDF</h1>
+            </td>
+          </tr>
+          <tr>
+            <td class="content">
+              ${bodyHtml}
+            </td>
+          </tr>
+        </table>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} Trust My PDF. All rights reserved.</p>
+          <p>If you have any questions, simply reply to this email.</p>
+        </div>
+      </center>
+    </body>
+    </html>
+  `;
+}
 
 // Send Welcome Email Endpoint
 app.post("/api/emails/welcome", async (req, res) => {
@@ -82,23 +133,18 @@ app.post("/api/emails/welcome", async (req, res) => {
       from: SENDER_EMAIL,
       to: email,
       subject: "Welcome to Trust My PDF! 🎉",
-      html: `
-        <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
-          <h2 style="color: #000;">Welcome to Trust My PDF, ${name}!</h2>
-          <p>We are thrilled to have you on board. Trust My PDF is your all-in-one suite for modifying, merging, compressing, and protecting your documents effortlessly.</p>
-          
-          <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 30px 0;">
-            <h3 style="margin-top: 0;">Ready to unlock continuous, high-speed access?</h3>
-            <p>Upgrade to Pro today for priority cloud processing, mobile readiness, and unlimited operations across all 12 PDF workspace utility tools.</p>
-            <div style="text-align: center; margin-top: 25px;">
-              <a href="${appUrl}/?action=unlock" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Unlock Unlimited Access</a>
-            </div>
+      html: buildEmailTemplate("Welcome to Trust My PDF! 🎉", `
+        <h2>Welcome to Trust My PDF, ${name}!</h2>
+        <p>We are thrilled to have you on board. Trust My PDF is your all-in-one suite for modifying, merging, compressing, and protecting your documents effortlessly.</p>
+        
+        <div class="card">
+          <h3>Ready to unlock continuous, high-speed access?</h3>
+          <p>Upgrade to Pro today for priority cloud processing, mobile readiness, and unlimited operations across all 12 PDF workspace utility tools.</p>
+          <div class="button-wrap">
+            <a href="${appUrl}/?action=unlock" class="button">Unlock Unlimited Access</a>
           </div>
-          
-          <p>If you have any questions, feel free to reply directly to this email.</p>
-          <p>Best regards,<br/>The Trust My PDF Team</p>
         </div>
-      `,
+      `),
     });
     console.log(`[Email] Welcome email sent to ${email}`);
     const testUrl = nodemailer.getTestMessageUrl(info);
@@ -194,17 +240,14 @@ app.post("/api/razorpay/verify", async (req, res) => {
         from: SENDER_EMAIL,
         to: userEmail,
         subject: `Payment Successful! Welcome to ${plan} 🚀`,
-        html: `
-          <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
-            <h2 style="color: #000;">Thank you for your payment!</h2>
-            <p>You have successfully unlocked <strong>${plan}</strong> for the next <strong>${duration}</strong>. You now have priority cloud access and unlimited PDF operations.</p>
-            <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0; margin: 20px 0;">
-              <p style="margin: 0; color: #166534; font-weight: bold;">Status: Premium Unlocked</p>
-            </div>
-            <p>Go ahead and do yourself whatever you want with your documents! We are thrilled to have your support.</p>
-            <p>Best,<br/>The Trust My PDF Team</p>
+        html: buildEmailTemplate(`Payment Successful! Welcome to ${plan} 🚀`, `
+          <h2>Thank you for your payment!</h2>
+          <p>You have successfully unlocked <strong>${plan}</strong> for the next <strong>${duration}</strong>. You now have priority cloud access and unlimited PDF operations.</p>
+          <div class="card-success">
+            <h3>Status: Premium Unlocked</h3>
           </div>
-        `,
+          <p>Go ahead and do yourself whatever you want with your documents! We are thrilled to have your support.</p>
+        `),
       });
       console.log(`[Email] Payment success email sent to ${userEmail}`);
       const testUrl = nodemailer.getTestMessageUrl(info);
@@ -515,23 +558,18 @@ app.post("/api/cron/expiry-reminders", async (req, res) => {
               from: SENDER_EMAIL,
               to: email,
               subject: "Unlock the full power of Trust My PDF 🚀",
-              html: `
-                <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
-                  <h2 style="color: #000;">Hi ${name},</h2>
-                  <p>I hope you're enjoying Trust My PDF so far!</p>
-                  <p>I noticed you are currently using the free version. Did you know that with a Premium plan, you get <strong>unlimited PDF operations</strong>, <strong>priority cloud processing speed</strong>, and absolutely <strong>zero usage limits</strong>?</p>
-                  
-                  <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; margin: 30px 0;">
-                    <h3 style="margin-top: 0; color: #0f172a;">Special Upgrade Offer</h3>
-                    <p>Upgrade today to save hours of time every week on your document workflows.</p>
-                    <div style="text-align: center; margin-top: 25px;">
-                      <a href="${appUrl}/?action=unlock" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">See Premium Plans</a>
-                    </div>
+              html: buildEmailTemplate("Unlock the full power of Trust My PDF 🚀", `
+                <h2>Hi ${name},</h2>
+                <p>I hope you're enjoying Trust My PDF so far!</p>
+                <p>I noticed you are currently using the free version. Did you know that with a Premium plan, you get <strong>unlimited PDF operations</strong>, <strong>priority cloud processing speed</strong>, and absolutely <strong>zero usage limits</strong>?</p>
+                <div class="card">
+                  <h3>Special Upgrade Offer</h3>
+                  <p>Upgrade today to save hours of time every week on your document workflows.</p>
+                  <div class="button-wrap">
+                    <a href="${appUrl}/?action=unlock" class="button">See Premium Plans</a>
                   </div>
-                  
-                  <p>Best regards,<br/>The Trust My PDF Team</p>
                 </div>
-              `,
+              `),
             });
             emailsSent++;
           }
@@ -546,22 +584,17 @@ app.post("/api/cron/expiry-reminders", async (req, res) => {
             from: SENDER_EMAIL,
             to: email,
             subject: "Your Trust My PDF Pro Plan expires tomorrow! ⏳",
-            html: `
-              <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
-                <h2 style="color: #000;">Hi ${name},</h2>
-                <p>Your <strong>${u.plan_status === 'pro' ? 'Pro' : u.plan_status}</strong> plan on Trust My PDF is expiring in less than 48 hours.</p>
-                
-                <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 12px; margin: 30px 0;">
-                  <h3 style="margin-top: 0; color: #b91c1c;">Don't lose your unlimited access!</h3>
-                  <p>To avoid losing priority cloud processing and unlimited usage of all PDF tools, please renew your plan.</p>
-                  <div style="text-align: center; margin-top: 25px;">
-                    <a href="${appUrl}/?action=unlock" style="background-color: #dc2626; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Renew Plan Now</a>
-                  </div>
+            html: buildEmailTemplate("Your Trust My PDF Pro Plan expires tomorrow! ⏳", `
+              <h2>Hi ${name},</h2>
+              <p>Your <strong>${u.plan_status === 'pro' ? 'Pro' : u.plan_status}</strong> plan on Trust My PDF is expiring in less than 48 hours.</p>
+              <div class="card-danger">
+                <h3>Don't lose your unlimited access!</h3>
+                <p>To avoid losing priority cloud processing and unlimited usage of all PDF tools, please renew your plan.</p>
+                <div class="button-wrap">
+                  <a href="${appUrl}/?action=unlock" class="button" style="background-color: #dc2626;">Renew Plan Now</a>
                 </div>
-                
-                <p>Best regards,<br/>The Trust My PDF Team</p>
               </div>
-            `,
+            `),
           });
           emailsSent++;
         }
