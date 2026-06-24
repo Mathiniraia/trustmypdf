@@ -20,6 +20,8 @@ import AdminDashboard, { isAdminEmail } from "./components/admin/AdminDashboard"
 import AdminPage from "./components/admin/AdminPage";
 import BlogList from "./components/blog/BlogList";
 import BlogPost from "./components/blog/BlogPost";
+import PrivacyPolicy from "./components/legal/PrivacyPolicy";
+import TermsOfService from "./components/legal/TermsOfService";
 import { BLOG_POSTS } from "./blogData";
 import { signInWithPopup, signInWithRedirect, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, getAdditionalUserInfo } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -309,6 +311,16 @@ export default function App() {
       }
       if (path.startsWith("blog/")) {
         setCurrentSlug(path); // e.g. "blog/welcome-to-trust-my-pdf"
+        return;
+      }
+
+      // Legal routing
+      if (path === "privacy") {
+        setCurrentSlug("privacy");
+        return;
+      }
+      if (path === "terms") {
+        setCurrentSlug("terms");
         return;
       }
 
@@ -647,6 +659,14 @@ export default function App() {
       return <BlogList />;
     }
     return <BlogPost post={post} />;
+  }
+
+  // ── Legal routes: render full-screen ──────────────────────
+  if (currentSlug === "privacy") {
+    return <PrivacyPolicy />;
+  }
+  if (currentSlug === "terms") {
+    return <TermsOfService />;
   }
 
   return (
@@ -1623,18 +1643,27 @@ export default function App() {
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-neutral-500 font-medium">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-neutral-500 font-medium items-center">
             <button onClick={() => navigateToSlug("")} className="hover:text-black transition-colors cursor-pointer">All Tools</button>
             <button onClick={() => navigateToSlug("merge-pdf")} className="hover:text-black transition-colors cursor-pointer">Merge</button>
             <button onClick={() => navigateToSlug("split-pdf")} className="hover:text-black transition-colors cursor-pointer">Split</button>
             <button onClick={() => navigateToSlug("compress-pdf")} className="hover:text-black transition-colors cursor-pointer">Compress</button>
             <button onClick={() => navigateToSlug("protect-pdf")} className="hover:text-black transition-colors cursor-pointer">Protect</button>
+            <button onClick={() => {
+              window.history.pushState(null, "", "/privacy");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }} className="hover:text-black transition-colors cursor-pointer ml-4">Privacy</button>
+            <button onClick={() => {
+              window.history.pushState(null, "", "/terms");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }} className="hover:text-black transition-colors cursor-pointer">Terms</button>
+            
             <button 
               onClick={() => {
                 setPaywallForcePlans(true);
                 setIsPaywallOpen(true);
               }} 
-              className="bg-black hover:bg-neutral-800 text-white font-bold px-4 py-2 rounded-lg text-sm transition duration-200 cursor-pointer select-none"
+              className="bg-black hover:bg-neutral-800 text-white font-bold px-4 py-2 rounded-lg text-sm transition duration-200 cursor-pointer select-none ml-2"
             >
               Unlock Pro
             </button>
